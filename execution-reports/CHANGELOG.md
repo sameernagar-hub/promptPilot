@@ -159,3 +159,17 @@ This changelog records every meaningful command, check, file edit, and project-c
 ### Final Changelog Sync Plan
 
 - This entry records the successful push and should be committed and pushed as the final audit update for the sync operation.
+
+## 2026-06-15
+
+### Root README Front Page
+
+- Checked repository status with `git status --short --branch`.
+  - Result: local `main` was clean and tracking `origin/main`.
+- Listed repository files with `rg --files`.
+  - Result: no root `README.md` existed.
+- Listed top-level workspace files.
+  - Result: root contained `.git`, `EXECUTION_LOG.md`, `LICENSE`, and `execution-reports/`.
+- Added root `README.md`.
+  - Purpose: provide a GitHub front page for the project.
+  - Contents: product vision, MVP scope, planned stack, current status, planning documents, and next step.
