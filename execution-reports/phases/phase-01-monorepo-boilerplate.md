@@ -6,14 +6,14 @@ Initialize the full-stack project structure.
 
 ## Status
 
-Not started.
+Complete.
 
 ## Prerequisites
 
-- pnpm available.
-- Python runtime available.
-- uv available.
-- User approval to begin scaffolding.
+- [x] pnpm available.
+- [x] Python runtime available.
+- [x] uv available.
+- [x] User approval to begin scaffolding.
 
 ## Planned Directory Structure
 
@@ -34,34 +34,48 @@ evals/
 
 ## Planned Root Files
 
-- `README.md`
-- `.env.example`
-- `.gitignore`
-- package manager/workspace files as needed
+- [x] `README.md`
+- [x] `.env.example`
+- [x] `.gitignore`
+- [x] `package.json`
+- [x] `pnpm-workspace.yaml`
+- [x] `pnpm-lock.yaml`
 
 ## Planned Frontend Setup
 
-- Create Next.js app in `apps/web`.
-- Use TypeScript.
-- Use Tailwind CSS.
-- Add ESLint.
-- Add lucide-react, class-variance-authority, clsx, and tailwind-merge.
-- Initialize shadcn/ui.
+- [x] Create Next.js app in `apps/web`.
+- [x] Use TypeScript.
+- [x] Use Tailwind CSS.
+- [x] Add ESLint.
+- [x] Add lucide-react, class-variance-authority, clsx, and tailwind-merge.
+- [x] Initialize shadcn/ui.
 
 ## Planned Backend Setup
 
-- Create backend in `apps/api`.
-- Initialize uv project.
-- Add FastAPI, Uvicorn, Pydantic, SQLAlchemy, psycopg, pgvector, python-dotenv, LiteLLM, and DSPy.
+- [x] Create backend in `apps/api`.
+- [x] Initialize uv project.
+- [x] Add FastAPI, Uvicorn, Pydantic, SQLAlchemy, psycopg, pgvector, python-dotenv, LiteLLM, and DSPy.
+- [x] Add minimal FastAPI app entrypoint for startup verification.
 
 ## Verification
 
-- [ ] Folder structure exists.
-- [ ] Frontend app starts.
-- [ ] Backend app starts.
-- [ ] Root README and env examples exist.
-- [ ] Changelog updated with commands and results.
+- [x] Folder structure exists.
+- [x] Frontend app starts.
+- [x] Backend app starts.
+- [x] Root README and env examples exist.
+- [x] Changelog updated with commands and results.
+
+## Verified Results
+
+- Frontend lint passed with `pnpm.cmd lint:web`.
+- Frontend production build passed with `pnpm.cmd build:web`.
+- Frontend dev server returned HTTP `200` on `http://127.0.0.1:3000`.
+- Backend import check passed with `uv --directory apps/api run python main.py`.
+- Backend Uvicorn server returned HTTP `200` on `http://127.0.0.1:8000`.
+- Local startup was verified at:
+  - Web: `http://127.0.0.1:3000`
+  - API: `http://127.0.0.1:8000`
 
 ## Do Not Start Until
 
-The user gives explicit instruction to begin implementation.
+Complete. Next phase is Phase 2 infrastructure.

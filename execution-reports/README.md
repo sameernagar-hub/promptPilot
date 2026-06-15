@@ -4,13 +4,13 @@ This folder is the project control center for PromptPilot. It tracks what has be
 
 ## Current Rule
 
-Planning artifacts only have been created. Do not scaffold, install, initialize, or generate application code until the user gives the next instruction.
+Phase 1 monorepo boilerplate is complete. Do not add infrastructure, database models, or prompt-engine behavior until the user gives the next instruction for Phase 2.
 
 ## Files
 
 - `CHANGELOG.md`: chronological record of commands, checks, and file changes.
 - `CURRENT_STATUS.md`: short current-state summary and next decision point.
-- `00-environment-inventory.md`: local tools, installed status, missing applications, and install notes.
+- `00-environment-inventory.md`: local tools, installed status, and install notes.
 - `01-raw-materials.md`: technologies, packages, project files, data sources, and design materials needed.
 - `phases/`: one execution plan log per phase from `EXECUTION_LOG.md`.
 

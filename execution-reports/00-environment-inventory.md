@@ -10,19 +10,22 @@ This file tracks local applications and command-line tools needed for the Prompt
 | npm | Installed | `11.13.0` | Use `npm.cmd` in PowerShell. |
 | Corepack | Installed | `0.35.0` | Can potentially enable package managers. |
 | uv | Installed | `0.11.18` | Available at `C:\Users\nagar\.local\bin\uv.exe`. |
-
-## Missing or Not Usable Yet
-
-| Tool | Status | Why It Matters | Recommended Action |
-| --- | --- | --- | --- |
-| pnpm | Missing | Frontend monorepo/package workflow in the execution log uses pnpm. | Install with npm or enable through Corepack. |
-| Python | Missing/not usable | FastAPI backend requires Python 3.10+. | Install Python 3.10+ or configure an existing Python runtime. |
-| Docker | Missing from PATH | Required for Postgres/pgvector local infrastructure. | Install Docker Desktop or add Docker CLI to PATH if already installed. |
-| Ollama | Missing from PATH | Local LLM development target. | Install Ollama and pull `llama3.1:8b`. |
+| pnpm | Installed | `11.6.0` | Use `pnpm.cmd` in PowerShell because `pnpm.ps1` is blocked by execution policy. |
+| Python | Installed | `Python 3.14.5`; `uv` Python `3.12.13` | `python --version` works outside the sandbox; `uv run --python 3.12 python --version` verified the stable backend runtime. |
+| Docker Desktop | Installed | Docker CLI `29.5.3`, build `d1c06ef` | Installed at `C:\Program Files\Docker\Docker\resources\bin\docker.exe`; persisted PATH includes Docker. |
+| Ollama | Installed | `0.30.6` | Installed at `C:\Users\nagar\AppData\Local\Programs\Ollama\ollama.exe`; persisted PATH includes Ollama. |
+| Ollama model | Pulled | `llama3.1:8b`, `4.9 GB` | Verified with `ollama list` through the installed executable path. |
 
 ## PowerShell Notes
 
-PowerShell cannot run `npm.ps1` because scripts are disabled by execution policy. `npm.cmd` works and should be used for now.
+PowerShell cannot run `npm.ps1` or `pnpm.ps1` because scripts are disabled by execution policy. Use `npm.cmd` and `pnpm.cmd` for now.
+
+Docker and Ollama installed successfully and persisted PATH entries are present. This Codex session inherited PATH before installation, so either open a new terminal or use these direct paths inside the current session:
+
+```powershell
+& 'C:\Program Files\Docker\Docker\resources\bin\docker.exe' --version
+& 'C:\Users\nagar\AppData\Local\Programs\Ollama\ollama.exe' --version
+```
 
 ## Phase 0 Checklist
 
@@ -34,8 +37,8 @@ PowerShell cannot run `npm.ps1` because scripts are disabled by execution policy
 - [x] Check Python.
 - [x] Check Docker.
 - [x] Check Ollama.
-- [ ] Install or enable pnpm.
-- [ ] Install Python 3.10+.
-- [ ] Install Docker Desktop.
-- [ ] Install Ollama.
-- [ ] Pull local model `llama3.1:8b`.
+- [x] Install or enable pnpm.
+- [x] Install Python 3.10+.
+- [x] Install Docker Desktop.
+- [x] Install Ollama.
+- [x] Pull local model `llama3.1:8b`.

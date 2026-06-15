@@ -162,6 +162,132 @@ This changelog records every meaningful command, check, file edit, and project-c
 
 ## 2026-06-15
 
+### Phase 0 Local Environment Execution
+
+- Scanned `EXECUTION_LOG.md`, `execution-reports/CURRENT_STATUS.md`, and `execution-reports/phases/phase-00-local-environment.md`.
+  - Result: Phase 0 was blocked on pnpm, Python, Docker, Ollama, and the local Ollama model.
+- Re-ran local tool version checks.
+  - Node: `v24.16.0`.
+  - npm through `npm.cmd`: `11.13.0`.
+  - Corepack: `0.35.0`.
+  - uv: `0.11.18`.
+  - pnpm: initially not found.
+  - Python: initially unreliable in the sandbox; verified outside the sandbox later.
+  - Docker: initially not found on PATH.
+  - Ollama: initially not found on PATH.
+- Tried `corepack enable pnpm`.
+  - Result: failed with `EPERM` writing shims into `C:\Program Files\nodejs`.
+- Installed pnpm with `npm.cmd install -g pnpm`.
+  - Result: pnpm installed successfully.
+  - Verification: `pnpm.cmd --version` returned `11.6.0`.
+  - Note: PowerShell blocks `pnpm.ps1`; use `pnpm.cmd`.
+- Checked uv-managed Python availability.
+  - Result: uv found existing Python `3.14.5` installs and downloadable stable runtimes.
+- Installed stable Python with `uv python install 3.12`.
+  - Result: Python `3.12.13` installed through uv.
+  - Verification: `uv run --python 3.12 python --version` returned `Python 3.12.13`.
+  - Direct system verification outside the sandbox: `python --version` returned `Python 3.14.5`.
+- Checked Windows Package Manager.
+  - Result: `winget --version` returned `v1.28.240`.
+- Installed Docker Desktop with `winget install --exact --id Docker.DockerDesktop --accept-package-agreements --accept-source-agreements`.
+  - Result: Docker Desktop `4.77.0` installed.
+  - Verification: direct Docker CLI path returned Docker `29.5.3`, build `d1c06ef`.
+  - Note: persisted PATH includes Docker; this Codex session did not refresh PATH for `docker`, so direct path was used.
+- Started Ollama installation with winget.
+  - Result: first attempt timed out and left a stale winget process; Ollama was not installed.
+- Stopped the stale winget process and retried with `--silent`.
+  - Result: Ollama `0.30.6` installed successfully.
+  - Verification: direct executable path returned `ollama version is 0.30.6`.
+  - Note: persisted PATH includes Ollama; this Codex session did not refresh PATH for `ollama`, so direct path was used.
+- Pulled the initial local model with Ollama.
+  - Command shape: `ollama pull llama3.1:8b`.
+  - Result: download, digest verification, and manifest write succeeded.
+  - Verification: `ollama list` showed `llama3.1:8b`, size `4.9 GB`.
+- Reloaded persisted Machine and User PATH values inside a shell and rechecked Docker and Ollama.
+  - Result: `docker --version` returned Docker `29.5.3`, build `d1c06ef`.
+  - Result: `ollama --version` returned `0.30.6`.
+- Updated Phase 0 documentation.
+  - Updated `execution-reports/00-environment-inventory.md`.
+  - Updated `execution-reports/phases/phase-00-local-environment.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated root `README.md`.
+  - Updated `EXECUTION_LOG.md` current status.
+
+### Phase 1 Monorepo Boilerplate Execution
+
+- Read `execution-reports/phases/phase-01-monorepo-boilerplate.md`, `execution-reports/CURRENT_STATUS.md`, and `execution-reports/01-raw-materials.md`.
+  - Result: Phase 1 was approved and ready to scaffold.
+- Created monorepo directories.
+  - Added `apps/`, `apps/api/`, `packages/shared/`, `infra/`, `docs/`, `scripts/`, `datasets/prompt-sources/`, and `evals/promptfoo/`.
+- Added root workspace files.
+  - Added `package.json`.
+  - Added `pnpm-workspace.yaml`.
+  - Added `pnpm-lock.yaml` through root install.
+  - Added `.gitignore`.
+  - Added `.env.example`.
+- Added shared package placeholder.
+  - Added `packages/shared/package.json`.
+  - Added `packages/shared/src/index.ts`.
+- Added planning docs.
+  - Added `docs/architecture.md`.
+  - Added `docs/product-spec.md`.
+  - Added `docs/prompt-engine.md`.
+- Initialized frontend with create-next-app.
+  - Command shape: `pnpm dlx create-next-app@latest apps/web --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --use-pnpm --yes`.
+  - Result: Next.js app created under `apps/web`.
+  - Installed frontend versions included Next.js `16.2.9`, React `19.2.4`, Tailwind CSS `4.3.1`, and TypeScript `5.9.3`.
+- Resolved pnpm build-script approval gate.
+  - Approved build scripts for `sharp` and `unrs-resolver`.
+  - Normalized dependency management back to root workspace by removing app-local pnpm workspace and lock files.
+- Installed frontend helper packages.
+  - Added `lucide-react`, `class-variance-authority`, `clsx`, and `tailwind-merge`.
+- Initialized shadcn/ui.
+  - Command shape: `pnpm dlx shadcn@latest init --defaults --no-monorepo --cwd .`.
+  - Result: `components.json`, `src/components/ui/button.tsx`, and `src/lib/utils.ts` were created.
+- Removed generated Google font dependency from `apps/web/src/app/layout.tsx`.
+  - Reason: production build initially needed network access for `next/font/google`; the scaffold now builds after dependencies are installed without fetching fonts.
+- Initialized backend with uv.
+  - Command shape: `uv init --app --python 3.12`.
+  - Result: uv project created under `apps/api`.
+- Added backend dependencies with uv.
+  - Added FastAPI, Uvicorn, Pydantic, SQLAlchemy, `psycopg[binary]`, pgvector, python-dotenv, LiteLLM, and DSPy.
+  - Result: `.venv`, `pyproject.toml`, and `uv.lock` were created.
+- Added minimal backend app entrypoint.
+  - Added `apps/api/app/main.py`.
+  - Updated `apps/api/main.py` to verify the FastAPI app is importable.
+  - Added `apps/api/.env.example`.
+  - Added `apps/web/.env.example`.
+- Verified frontend.
+  - `pnpm.cmd lint:web` passed.
+  - `pnpm.cmd build:web` passed.
+  - Briefly started the Next.js dev server and confirmed HTTP `200` from `http://127.0.0.1:3000`.
+- Verified backend.
+  - `uv --directory apps/api run python main.py` passed.
+  - Briefly started Uvicorn and confirmed HTTP `200` from `http://127.0.0.1:8000`.
+  - Stopped spawned API child processes after verification.
+- Started local dev servers during verification.
+  - Web: `http://127.0.0.1:3000`, HTTP `200`.
+  - API: `http://127.0.0.1:8000`, HTTP `200`, response `{"service":"promptpilot-api","status":"ok"}`.
+  - Note: background server processes were not left running after the final probe.
+- Updated Phase 1 documentation.
+  - Updated `execution-reports/phases/phase-01-monorepo-boilerplate.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated root `README.md`.
+  - Updated `EXECUTION_LOG.md` current status.
+
+### Phase 1 README Attribution And GitHub Sync
+
+- Updated root `README.md`.
+  - Added project owner attribution: Sameer Nagar.
+  - Clarified that Phase 1 is complete and Phase 2 infrastructure is next.
+- Re-ran pre-commit checks.
+  - `git diff --check` passed.
+  - `pnpm.cmd lint:web` passed.
+  - `uv --directory apps/api run python main.py` passed.
+- Next action: commit and push the current Phase 0 and Phase 1 scaffold state to GitHub.
+
 ### Root README Front Page
 
 - Checked repository status with `git status --short --branch`.
