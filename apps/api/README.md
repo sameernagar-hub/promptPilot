@@ -28,6 +28,8 @@ Phase 3 endpoints:
 - `POST /sessions/{session_id}/run-prompt`
 - `POST /prompts/{prompt_id}/save`
 - `GET /saved-prompts`
+- `GET /profile`
+- `POST /profile/refresh`
 
 Phase 4 persistence:
 
@@ -48,3 +50,18 @@ Invoke-RestMethod `
 ```
 
 The pipeline runs locally without an external LLM. It classifies, generates clarifying questions, merges supplied answers/settings, creates 3 prompt variants, scores them, and returns a deterministic recommendation.
+
+Phase 7 profile endpoint:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/profile
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/profile/refresh
+```
+
+The profile foundation stores prompting traits separately from prompt variants. The active analyzer version, `trait_detector_v1`, derives evidence-backed observations from local sessions and imported user messages.
+
+Phase 8 trait detection:
+
+- `prompting_trait_signals` stores per-example signals beneath aggregate observations.
+- `trait_detector_v1` normalizes local sessions and imported user messages.
+- Profile responses include evidence level, signal count, and representative signal explanations for each trait.

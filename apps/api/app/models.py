@@ -33,6 +33,163 @@ class User(Base):
 
     sessions: Mapped[list["ProblemSession"]] = relationship(back_populates="user")
     saved_prompts: Mapped[list["SavedPrompt"]] = relationship(back_populates="user")
+    prompt_profile: Mapped["UserPromptProfile | None"] = relationship(
+        back_populates="user",
+        uselist=False,
+    )
+
+
+class UserPromptProfile(Base):
+    __tablename__ = "user_prompt_profiles"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    profile_key: Mapped[str] = mapped_column(String(80), unique=True, default="local")
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    display_name: Mapped[str] = mapped_column(String(160), default="Local profile")
+    status: Mapped[str] = mapped_column(String(40), default="empty")
+    summary: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    total_sessions: Mapped[int] = mapped_column(Integer, default=0)
+    total_imports: Mapped[int] = mapped_column(Integer, default=0)
+    observation_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_refreshed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    user: Mapped[User | None] = relationship(back_populates="prompt_profile")
+    observations: Mapped[list["TraitObservation"]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        order_by="TraitObservation.trait_key",
+    )
+    signals: Mapped[list["PromptingTraitSignal"]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        order_by="PromptingTraitSignal.created_at",
+    )
+    imports: Mapped[list["ConversationImport"]] = relationship(back_populates="profile")
+    platform_preferences: Mapped[list["PlatformPreference"]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+    )
+    integration_connections: Mapped[list["IntegrationConnection"]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+    )
+
+
+class PromptingTrait(Base):
+    __tablename__ = "prompting_traits"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    trait_key: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    label: Mapped[str] = mapped_column(String(160))
+    description: Mapped[str] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(String(80), default="foundation")
+    scoring_direction: Mapped[str] = mapped_column(String(80), default="higher_is_stronger")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    observations: Mapped[list["TraitObservation"]] = relationship(
+        back_populates="trait",
+        cascade="all, delete-orphan",
+    )
+    signals: Mapped[list["PromptingTraitSignal"]] = relationship(
+        back_populates="trait",
+        cascade="all, delete-orphan",
+    )
+
+
+class TraitObservation(Base):
+    __tablename__ = "trait_observations"
+    __table_args__ = (
+        Index(
+            "ix_trait_observations_profile_trait_source",
+            "profile_id",
+            "trait_key",
+            "source_type",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("user_prompt_profiles.id"), index=True)
+    trait_id: Mapped[str | None] = mapped_column(ForeignKey("prompting_traits.id"), nullable=True)
+    trait_key: Mapped[str] = mapped_column(String(120), index=True)
+    score: Mapped[float] = mapped_column(Float)
+    confidence: Mapped[float] = mapped_column(Float)
+    summary: Mapped[str] = mapped_column(Text)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    source_type: Mapped[str] = mapped_column(String(80), default="session_summary_v1")
+    source_ref: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("problem_sessions.id"),
+        nullable=True,
+    )
+    prompt_variant_id: Mapped[str | None] = mapped_column(
+        ForeignKey("prompt_variants.id"),
+        nullable=True,
+    )
+    imported_message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("imported_messages.id"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    profile: Mapped[UserPromptProfile] = relationship(back_populates="observations")
+    trait: Mapped[PromptingTrait | None] = relationship(back_populates="observations")
+
+
+class PromptingTraitSignal(Base):
+    __tablename__ = "prompting_trait_signals"
+    __table_args__ = (
+        Index(
+            "ix_prompting_trait_signals_profile_trait_source",
+            "profile_id",
+            "trait_key",
+            "source_type",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("user_prompt_profiles.id"), index=True)
+    trait_id: Mapped[str | None] = mapped_column(ForeignKey("prompting_traits.id"), nullable=True)
+    trait_key: Mapped[str] = mapped_column(String(120), index=True)
+    signal_key: Mapped[str] = mapped_column(String(160))
+    signal_label: Mapped[str] = mapped_column(String(200))
+    score: Mapped[float] = mapped_column(Float)
+    weight: Mapped[float] = mapped_column(Float, default=1.0)
+    confidence: Mapped[float] = mapped_column(Float)
+    explanation: Mapped[str] = mapped_column(Text)
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    source_type: Mapped[str] = mapped_column(String(80), default="trait_detector_v1")
+    source_ref: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("problem_sessions.id"),
+        nullable=True,
+    )
+    imported_message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("imported_messages.id"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    profile: Mapped[UserPromptProfile] = relationship(back_populates="signals")
+    trait: Mapped[PromptingTrait | None] = relationship(back_populates="signals")
 
 
 class ProblemSession(Base):
@@ -181,6 +338,153 @@ class SavedPrompt(Base):
     prompt: Mapped[PromptVariant] = relationship(back_populates="saved_prompts")
     session: Mapped[ProblemSession] = relationship(back_populates="saved_prompts")
     user: Mapped[User | None] = relationship(back_populates="saved_prompts")
+
+
+class ConversationImport(Base):
+    __tablename__ = "conversation_imports"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("user_prompt_profiles.id"), index=True)
+    platform: Mapped[str] = mapped_column(String(80), default="manual")
+    source_type: Mapped[str] = mapped_column(String(80), default="manual")
+    title: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    consent_status: Mapped[str] = mapped_column(String(60), default="user_provided")
+    redaction_status: Mapped[str] = mapped_column(String(60), default="pending")
+    import_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    profile: Mapped[UserPromptProfile] = relationship(back_populates="imports")
+    conversations: Mapped[list["ImportedConversation"]] = relationship(
+        back_populates="conversation_import",
+        cascade="all, delete-orphan",
+        order_by="ImportedConversation.created_at",
+    )
+
+
+class ImportedConversation(Base):
+    __tablename__ = "imported_conversations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    import_id: Mapped[str] = mapped_column(ForeignKey("conversation_imports.id"), index=True)
+    platform: Mapped[str] = mapped_column(String(80), default="manual")
+    external_conversation_id: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    conversation_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    conversation_import: Mapped[ConversationImport] = relationship(back_populates="conversations")
+    messages: Mapped[list["ImportedMessage"]] = relationship(
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="ImportedMessage.position",
+    )
+
+
+class ImportedMessage(Base):
+    __tablename__ = "imported_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("imported_conversations.id"),
+        index=True,
+    )
+    role: Mapped[str] = mapped_column(String(80))
+    message_text: Mapped[str] = mapped_column(Text)
+    redacted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    message_timestamp: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    message_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    conversation: Mapped[ImportedConversation] = relationship(back_populates="messages")
+
+
+class PromptRevision(Base):
+    __tablename__ = "prompt_revisions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    session_id: Mapped[str | None] = mapped_column(ForeignKey("problem_sessions.id"), nullable=True)
+    prompt_variant_id: Mapped[str | None] = mapped_column(
+        ForeignKey("prompt_variants.id"),
+        nullable=True,
+    )
+    profile_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_prompt_profiles.id"),
+        nullable=True,
+    )
+    revision_type: Mapped[str] = mapped_column(String(80), default="refinement")
+    before_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    after_text: Mapped[str] = mapped_column(Text)
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    revision_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class DomainConfirmation(Base):
+    __tablename__ = "domain_confirmations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("problem_sessions.id"), index=True)
+    profile_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_prompt_profiles.id"),
+        nullable=True,
+    )
+    detected_domain: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    confirmed_domain: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    domain_source: Mapped[str] = mapped_column(String(80), default="detected")
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class PlatformPreference(Base):
+    __tablename__ = "platform_preferences"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("user_prompt_profiles.id"), index=True)
+    platform: Mapped[str] = mapped_column(String(80))
+    preference: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    profile: Mapped[UserPromptProfile] = relationship(back_populates="platform_preferences")
+
+
+class IntegrationConnection(Base):
+    __tablename__ = "integration_connections"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("user_prompt_profiles.id"), index=True)
+    platform: Mapped[str] = mapped_column(String(80))
+    status: Mapped[str] = mapped_column(String(60), default="planned")
+    scopes: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    connection_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    profile: Mapped[UserPromptProfile] = relationship(back_populates="integration_connections")
 
 
 class PromptSource(Base):

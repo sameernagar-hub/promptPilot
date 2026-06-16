@@ -218,6 +218,9 @@ export function PromptWorkspace({
             <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/library">
               Library
             </Link>
+            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/profile">
+              Profile
+            </Link>
             <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/settings">
               Settings
             </Link>

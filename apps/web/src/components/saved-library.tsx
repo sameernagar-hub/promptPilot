@@ -33,9 +33,14 @@ export function SavedLibrary() {
               <p className="text-xs text-[#65736f]">{status}</p>
             </div>
           </div>
-          <Link className="rounded-md px-2 py-1 text-sm hover:bg-[#edf1e8]" href="/">
-            Workspace
-          </Link>
+          <nav className="flex items-center gap-2 text-sm">
+            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/">
+              Workspace
+            </Link>
+            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/profile">
+              Profile
+            </Link>
+          </nav>
         </div>
       </header>
 

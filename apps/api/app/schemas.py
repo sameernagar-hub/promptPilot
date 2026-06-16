@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -136,6 +136,54 @@ class SessionResponse(BaseModel):
     clarifying_questions: list[dict] = Field(default_factory=list)
     answers: dict[str, str] = Field(default_factory=dict)
     prompt_variant_ids: list[str] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class PromptingTraitSignalResponse(BaseModel):
+    id: str
+    trait_key: str
+    signal_key: str
+    signal_label: str
+    score: float
+    weight: float
+    confidence: float
+    explanation: str
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    source_type: str
+    source_ref: str | None = None
+    created_at: datetime
+
+
+class TraitObservationResponse(BaseModel):
+    id: str
+    trait_key: str
+    trait_label: str
+    category: str
+    score: float
+    confidence: float
+    evidence_level: str
+    signal_count: int
+    summary: str
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    signals: list[PromptingTraitSignalResponse] = Field(default_factory=list)
+    source_type: str
+    source_ref: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class PromptProfileResponse(BaseModel):
+    id: str
+    profile_key: str
+    display_name: str
+    status: str
+    summary: dict[str, Any] = Field(default_factory=dict)
+    total_sessions: int
+    total_imports: int
+    observation_count: int
+    last_refreshed_at: datetime | None = None
+    traits: list[TraitObservationResponse] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 

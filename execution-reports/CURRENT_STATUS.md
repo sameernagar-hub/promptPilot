@@ -1,6 +1,6 @@
 # Current Status
 
-PromptPilot has completed Phase 6 frontend MVP.
+PromptPilot has completed Phase 8 prompting trait detection. The roadmap has pivoted from prompt-library expansion to a prompting profile and user-experience intelligence direction.
 
 ## Verified Workspace State
 
@@ -10,10 +10,13 @@ PromptPilot has completed Phase 6 frontend MVP.
 - Next.js frontend exists at `apps/web`.
 - Frontend MVP workspace exists at `/`.
 - Planned frontend routes exist for sessions, compare, library, and settings.
+- The frontend profile dashboard exists at `/profile`.
 - FastAPI backend exists at `apps/api`.
 - Backend API skeleton modules, routers, schemas, and rule services exist.
 - Backend API persistence is backed by SQLAlchemy and local Postgres.
 - Prompt engine V1 pipeline exists and runs without an external LLM.
+- Prompting profile foundation exists and can summarize local sessions into first-pass trait observations.
+- Prompting trait detection now stores per-example signals and aggregates them into evidence-backed observations.
 - Phase 4 database tables exist in local Postgres.
 - Shared package exists at `packages/shared`.
 - Phase 2 Docker Compose infrastructure exists at `infra/docker-compose.yml`.
@@ -41,7 +44,7 @@ PromptPilot has completed Phase 6 frontend MVP.
 
 ## Recommended Next Decision
 
-Start Phase 7: prompt knowledge base.
+Start Phase 9: Chat History Import and Integration Foundation.
 
 ## Verified Local Startup URLs
 
@@ -88,3 +91,39 @@ Start Phase 7: prompt knowledge base.
 - `pnpm.cmd --dir apps/web lint` passes.
 - `pnpm.cmd --dir apps/web build` passes.
 - Browser workflow verification passed with a temporary Playwright smoke test against local Edge.
+
+## Phase 7 Verification State
+
+- Profile foundation models exist for profiles, traits, observations, imports, imported conversations/messages, prompt revisions, domain confirmations, platform preferences, and integration connections.
+- Profile response schemas exist.
+- `GET /profile` and `POST /profile/refresh` routes exist.
+- `trait_detector_v1` analyzer can derive signal-backed trait observations from local sessions.
+- `/profile` dashboard exists in the frontend.
+- Workspace, library, and settings navs link to Profile.
+- `uv run python -m compileall app` passes from `apps/api`.
+- `uv --directory apps/api run python main.py` passes.
+- SQLAlchemy mapper configuration passes and registers 19 ORM tables.
+- `pnpm.cmd --dir apps/web lint` passes.
+- `pnpm.cmd --dir apps/web build` passes.
+- DB-backed profile smoke test was previously blocked by Docker, and is now covered by the Phase 8 DB-backed smoke test.
+
+## Phase 8 Verification State
+
+- `prompting_trait_signals` table exists.
+- `trait_detector_v1` normalizes local sessions and imported user messages into one evidence stream.
+- Trait detection extracts per-example signals for all 12 seed trait dimensions.
+- Trait observations include score, confidence, evidence, evidence level, signal count, and representative signals.
+- `/profile` shows evidence level badges, signal counts, and signal explanations.
+- DB-backed smoke test passed against running Docker/Postgres:
+  - `GET /health` returned database status `ok`.
+  - `POST /sessions` returned `201`.
+  - `POST /sessions/{id}/run-pipeline` returned `200`.
+  - `POST /profile/refresh` returned `200`.
+  - `GET /profile` returned `200`.
+- Smoke test profile refresh produced 12 observations and 176 stored signals in the tested local database.
+- SQLAlchemy mapper configuration passes and registers 20 ORM tables.
+- `uv run python -m compileall app` passes from `apps/api`.
+- `uv --directory apps/api run python main.py` passes.
+- `pnpm.cmd --dir apps/web lint` passes.
+- `pnpm.cmd --dir apps/web build` passes.
+- In-app Browser was unavailable; Microsoft Edge Playwright fallback verified `/profile`.

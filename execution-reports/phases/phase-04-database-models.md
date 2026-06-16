@@ -91,7 +91,7 @@ Date: 2026-06-15
 - Selected the pgvector field strategy:
   - `prompt_embeddings.embedding` uses pgvector's `vector` type.
   - Initial nullable dimension is `1536`.
-  - Embedding generation itself remains future Phase 7/8 work.
+  - Embedding generation itself is deferred to the later knowledge base, RAG, and optimization support phase.
 - Added persisted relationships:
   - `users` to `problem_sessions`
   - `problem_sessions` to `clarifying_questions`

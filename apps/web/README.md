@@ -20,13 +20,16 @@ The frontend expects the API at:
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
-Phase 6 routes:
+App routes:
 
 - `/`: main prompt workspace
 - `/sessions/[id]`: session workspace
 - `/compare/[id]`: comparison workspace
 - `/library`: saved prompt library
+- `/profile`: prompting profile dashboard
 - `/settings`: model and runtime settings
+
+The `/profile` dashboard shows profile metrics, trait cards, evidence level badges, signal counts, representative signals, and evidence links.
 
 Verification:
 

@@ -1,29 +1,31 @@
 # PromptPilot
 
-PromptPilot is a planned full-stack prompt intelligence platform. Its goal is to turn messy user problems into high-quality, tunable, ranked AI prompts and eventually guided agentic workflows.
+PromptPilot is a planned full-stack prompting experience platform. Its goal is to understand how a user prompts, build a useful prompting profile, guide clarifying questions, and generate detailed prompts shaped for the user's domain, preferences, and target AI platform.
 
 Project owner: Sameer Nagar
 
 The core promise:
 
-> Tell us your problem. We will build the best AI request for it.
+> Understand how you prompt. Then help you ask every AI system better.
 
 ## What PromptPilot Will Do
 
-PromptPilot is not intended to be a static prompt template library. It is designed as a dynamic prompt engine that can:
+PromptPilot is not intended to be a static prompt template library. It is designed as a prompting intelligence layer that can:
 
 - Understand a user's messy natural-language problem.
-- Detect domain, intent, risk, and likely user need.
-- Ask clarifying questions when useful.
-- Let the user tune style, depth, tone, risk, and output format.
-- Generate multiple prompt variants.
+- Detect domain, intent, risk, and likely user need, then confirm the domain with the user.
+- Ask clarifying questions before recommending a refined prompt.
+- Let the user tune style, depth, tone, formality, temperature, risk, source strictness, and output format.
+- Generate detailed prompt variants for the selected domain and target platform.
 - Score, compare, and recommend the strongest prompt.
 - Let users copy, save, improve, or run prompts.
-- Expand later into agent tracks, prompt packs, MCP integrations, and workflow execution.
+- Study imported or connected AI chat history to identify prompting traits and patterns.
+- Build a user prompting profile that can answer questions like "what do I usually miss?" or "how should I prompt Codex better?"
+- Expand later into Codex, Claude, ChatGPT, Gemini, MCP, and other platform integrations.
 
 ## MVP Scope
 
-The MVP is complete when a user can:
+The original MVP is complete when a user can:
 
 - Enter a messy problem.
 - Get automatic domain and intent detection.
@@ -40,6 +42,8 @@ Initial MVP domains:
 - Software and project building
 - Writing and business communication
 - Learning and research
+
+The revised product direction removes the fixed-domain mindset after the MVP. Future phases should support open domain detection, domain confirmation, and user-supplied domain correction.
 
 ## Planned Stack
 
@@ -75,7 +79,9 @@ AI and evaluation:
 
 ## Current Status
 
-Current project status: Phase 6 frontend MVP is complete. The local environment, monorepo scaffold, local Postgres/pgvector service, FastAPI workflow, SQLAlchemy persistence, deterministic prompt pipeline, and working Next.js workspace are ready.
+Current project status: Phase 8 prompting trait detection is complete. The local environment, monorepo scaffold, local Postgres/pgvector service, FastAPI workflow, SQLAlchemy persistence, deterministic prompt pipeline, working Next.js workspace, profile dashboard, and trait signal detector are ready.
+
+Roadmap status: the plan has pivoted from a prompt knowledge base first to a user-experience-led prompting profile system. Phase 9 is now Chat History Import and Integration Foundation.
 
 Completed so far:
 
@@ -103,24 +109,34 @@ Completed so far:
 - Frontend MVP workspace is implemented at `/`.
 - Frontend routes exist for `/sessions/[id]`, `/compare/[id]`, `/library`, and `/settings`.
 - The workspace can generate, compare, copy, run, save, and refresh prompt variants against the local API.
+- Phase 7 profile foundation tables, schemas, and API route are implemented.
+- `GET /profile` and `POST /profile/refresh` return a local prompting profile.
+- The profile analyzer creates first-pass trait observations from existing local sessions.
+- The frontend has a `/profile` dashboard with profile metrics, trait cards, confidence scores, and evidence links.
+- Phase 8 adds `prompting_trait_signals` and the `trait_detector_v1` analyzer.
+- Profile observations now roll up per-example signals with evidence levels and representative signal explanations.
+- The `/profile` dashboard shows evidence level badges, signal counts, and signal explanations.
 
 Not started yet:
 
-- Prompt knowledge base ingestion
-- Production application UI
+- Chat history import and integration foundation
+- Open domain detection with domain confirmation
+- Clarification-first prompt refinement
+- Platform-aware prompt output for Codex, Claude, ChatGPT, Gemini, and other AI systems
+- Profile Q&A and prompting insight dashboard
 
 ## Planning Documents
 
-- `EXECUTION_LOG.md`: original product definition, stack, phases, and implementation checklist.
+- `EXECUTION_LOG.md`: product definition, stack, revised phases, and implementation checklist.
 - `execution-reports/README.md`: guide to the planning/report folder.
 - `execution-reports/CURRENT_STATUS.md`: current project state.
 - `execution-reports/00-environment-inventory.md`: installed local tools and environment notes.
 - `execution-reports/01-raw-materials.md`: technologies, modules, screens, APIs, tables, and evaluation materials.
-- `execution-reports/phases/`: phase-by-phase execution logs from Phase 0 through Phase 13.
+- `execution-reports/phases/`: phase-by-phase execution logs from Phase 0 through Phase 15.
 - `execution-reports/CHANGELOG.md`: chronological record of checks, edits, commits, and sync steps.
 
 ## Next Step
 
-The next implementation step is Phase 7: prompt knowledge base.
+The next implementation step is Phase 9: Chat History Import and Integration Foundation.
 
-The current frontend is still the generated Next.js starter. The PromptPilot workspace UI begins in Phase 6.
+This phase should add user-provided chat imports, transcript normalization, redaction status, and import review flows.

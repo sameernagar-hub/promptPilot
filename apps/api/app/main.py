@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_database
-from app.routers import health, prompts, sessions
+from app.routers import health, profile, prompts, sessions
 
 
 @asynccontextmanager
@@ -33,6 +33,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(profile.router)
 app.include_router(sessions.router)
 app.include_router(prompts.router)
 

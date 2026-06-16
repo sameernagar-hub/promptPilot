@@ -78,6 +78,78 @@ export type SavedPrompt = {
   created_at: string;
 };
 
+export type TraitObservation = {
+  id: string;
+  trait_key: string;
+  trait_label: string;
+  category: string;
+  score: number;
+  confidence: number;
+  evidence_level: "none" | "tentative" | "emerging" | "strong";
+  signal_count: number;
+  summary: string;
+  evidence: {
+    type: string;
+    session_id?: string;
+    excerpt?: string;
+    domain?: string | null;
+    intent?: string | null;
+    created_at?: string;
+  }[];
+  signals: {
+    id: string;
+    trait_key: string;
+    signal_key: string;
+    signal_label: string;
+    score: number;
+    weight: number;
+    confidence: number;
+    explanation: string;
+    evidence: {
+      type?: string;
+      session_id?: string;
+      imported_message_id?: string;
+      excerpt?: string;
+      domain?: string | null;
+      intent?: string | null;
+      risk_level?: string | null;
+      source_ref?: string;
+    };
+    source_type: string;
+    source_ref: string | null;
+    created_at: string;
+  }[];
+  source_type: string;
+  source_ref: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PromptProfile = {
+  id: string;
+  profile_key: string;
+  display_name: string;
+  status: "empty" | "partial" | "populated";
+  summary: {
+    headline?: string;
+    session_count?: number;
+    import_count?: number;
+    strongest_traits?: {
+      trait_key: string;
+      score: number;
+      confidence: number;
+    }[];
+    needs_more_evidence?: boolean;
+  };
+  total_sessions: number;
+  total_imports: number;
+  observation_count: number;
+  last_refreshed_at: string | null;
+  traits: TraitObservation[];
+  created_at: string;
+  updated_at: string;
+};
+
 export const defaultSettings: PromptSettings = {
   length: "medium",
   skill_level: "practical",
@@ -169,4 +241,15 @@ export async function savePrompt(promptId: string, label?: string) {
 
 export async function getSavedPrompts() {
   return request<SavedPrompt[]>("/saved-prompts");
+}
+
+export async function getProfile() {
+  return request<PromptProfile>("/profile");
+}
+
+export async function refreshProfile() {
+  return request<PromptProfile>("/profile/refresh", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
 }

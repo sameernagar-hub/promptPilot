@@ -610,3 +610,89 @@ This changelog records every meaningful command, check, file edit, and project-c
   - Updated root `README.md`.
   - Updated `EXECUTION_LOG.md`.
   - Replaced generated `apps/web/README.md`.
+
+### Roadmap Pivot To Prompting Profile UX
+
+- Reviewed the completed Phase 6 product state and the future phase plan.
+  - Result: the next product direction is no longer prompt knowledge base first.
+  - New direction: user prompting profiles, chat history import, domain confirmation, clarification-first refinement, and platform-aware prompts.
+- Updated primary planning docs.
+  - Updated `README.md`.
+  - Updated `EXECUTION_LOG.md`.
+  - Updated `docs/product-spec.md`.
+  - Updated `docs/prompt-engine.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+- Replaced future phase files.
+  - Phase 7 is now Prompting Profile Foundation.
+  - Phase 8 is now Prompting Trait Detection.
+  - Phase 9 is now Chat History Import and Integration Foundation.
+  - Phase 10 is now Open Domain Detection and Confirmation.
+  - Phase 11 is now Clarification-First Prompt Refinement.
+  - Phase 12 is now Advanced Controls and Target Platform Output.
+  - Phase 13 is now Profile Q&A and UX Dashboard.
+  - Added Phase 14 for Evaluation, Privacy, and Production Readiness.
+  - Added Phase 15 for Knowledge Base, RAG, DSPy, and Agent Tracks as deferred support systems.
+
+### Phase 7 Prompting Profile Foundation Execution
+
+- Implemented Phase 7 backend foundation.
+  - Added SQLAlchemy models for user prompt profiles, prompting traits, trait observations, conversation imports, imported conversations, imported messages, prompt revisions, domain confirmations, platform preferences, and integration connections.
+  - Added profile response schemas.
+  - Added deterministic `session_summary_v1` profile analyzer.
+  - Added `GET /profile` and `POST /profile/refresh`.
+  - Wired the profile router into the FastAPI app.
+- Implemented Phase 7 frontend surface.
+  - Added typed profile API calls.
+  - Added `/profile` route.
+  - Added `ProfileView` with metrics, trait cards, confidence scores, and session evidence links.
+  - Added Profile links to workspace, library, and settings navigation.
+- Verification.
+  - `uv run python -m compileall app` passed from `apps/api`.
+  - `uv --directory apps/api run python main.py` passed.
+  - SQLAlchemy mapper configuration passed and registered 19 ORM tables.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed.
+  - FastAPI `TestClient` profile smoke test was blocked because Docker Desktop was not running and local Postgres was unavailable.
+- Updated documentation.
+  - Updated `README.md`.
+  - Updated `EXECUTION_LOG.md`.
+  - Updated `apps/api/README.md`.
+  - Updated `apps/web/README.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated `execution-reports/phases/phase-07-prompting-profile-foundation.md`.
+
+### Phase 8 Prompting Trait Detection Execution
+
+- Implemented the Phase 8 signal layer.
+  - Added `PromptingTraitSignal` and the `prompting_trait_signals` table.
+  - Replaced aggregate-only profile analysis with `trait_detector_v1`.
+  - Normalized local sessions and imported user messages into one example stream.
+  - Extracted per-example signals for all 12 seed traits.
+  - Aggregated signals into observations with score, confidence, evidence, evidence level, signal count, and representative signal explanations.
+- Updated the profile API response.
+  - Added `PromptingTraitSignalResponse`.
+  - Added evidence level, signal count, and representative signals to trait observations.
+- Updated the profile dashboard.
+  - Added evidence level badges.
+  - Added signal counts.
+  - Added representative signal rows under each trait.
+- Verification.
+  - Docker/Postgres was running.
+  - DB-backed smoke test passed: health, session creation, pipeline run, profile refresh, profile read, and table existence.
+  - Smoke test profile refresh returned 12 observations and 176 signals in the tested local database.
+  - `uv run python -m compileall app` passed.
+  - SQLAlchemy mapper configuration passed and registered 20 ORM tables.
+  - `uv --directory apps/api run python main.py` passed.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed.
+  - In-app Browser was unavailable; Microsoft Edge Playwright fallback verified `/profile` rendered 12 trait cards, evidence badges, and signal rows.
+- Updated documentation and status files.
+  - Updated `README.md`.
+  - Updated `EXECUTION_LOG.md`.
+  - Updated `apps/api/README.md`.
+  - Updated `apps/web/README.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated `execution-reports/phases/phase-08-prompting-trait-detection.md`.
