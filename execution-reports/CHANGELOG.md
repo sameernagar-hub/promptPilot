@@ -323,3 +323,290 @@ This changelog records every meaningful command, check, file edit, and project-c
 ### Final README Audit Sync Plan
 
 - This entry records the successful README push and should be committed and pushed as the final audit update for the README task.
+
+### Phase 2 Infrastructure Execution
+
+- Read `execution-reports/phases/phase-02-infrastructure.md`, `execution-reports/CURRENT_STATUS.md`, `EXECUTION_LOG.md`, and root `package.json`.
+  - Result: Phase 2 required local Postgres with pgvector and API env values.
+- Checked `apps/api/.env.example`.
+  - Result: it already contained the required `DATABASE_URL`, `LLM_PROVIDER`, `OLLAMA_BASE_URL`, and `DEFAULT_MODEL` values.
+- Added `infra/docker-compose.yml`.
+  - Service: `postgres`.
+  - Image: `pgvector/pgvector:pg16`.
+  - Database, user, and password: `prompt_engine`.
+  - Published port: `5432`.
+  - Volume: `postgres_data`.
+- Ran `docker compose -f infra\docker-compose.yml config`.
+  - Result: Compose file validated successfully.
+  - Note: Docker warned that this sandbox could not read `C:\Users\nagar\.docker\config.json`.
+- Tried to start the Postgres service with Docker Compose.
+  - Sandboxed result: failed because the session could not access the Docker Engine pipe.
+  - Elevated result: Docker Desktop returned a Docker API 500 while resolving `pgvector/pgvector:pg16`.
+- Checked Docker runtime health.
+  - `docker context ls` showed `desktop-linux` selected.
+  - `docker compose version` returned `v5.1.4`.
+  - `docker desktop status` reported `stopped`.
+  - `docker info` timed out or returned a Docker API 500.
+  - `Get-Service` showed `com.docker.service` stopped.
+  - `Start-Service -Name com.docker.service` was denied by Windows service permissions.
+  - Launching Docker Desktop and running `docker desktop start` did not bring the engine to a usable running state in this session.
+- Checked WSL.
+  - `wsl --list --verbose` reported that WSL is not installed.
+  - `wsl --install --no-distribution` returned the same WSL-not-installed message.
+  - `wsl.exe --install` returned the same WSL-not-installed message.
+  - `dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart` failed with Error 740 because an Administrator command prompt is required.
+- Verified API env reading with uv after approving cache access.
+  - Result: `DATABASE_URL` resolved to `postgresql://prompt_engine:prompt_engine@localhost:5432/prompt_engine`.
+- Updated Phase 2 documentation.
+  - Updated `execution-reports/phases/phase-02-infrastructure.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated root `README.md`.
+  - Updated `EXECUTION_LOG.md`.
+
+### Phase 2 Infrastructure Completion After WSL Install
+
+- Continued Phase 2 after WSL was installed.
+- Checked WSL and Docker state.
+  - Initial `wsl --list --verbose` reported WSL was present but had no user distributions.
+  - Initial `docker desktop status` reported Docker Desktop was not running.
+  - `docker context ls` showed `desktop-linux` selected.
+- Started Docker Desktop with `docker desktop start`.
+  - Result: Docker Desktop started successfully.
+- Rechecked runtime state.
+  - `docker desktop status` reported `running`.
+  - `docker info` succeeded.
+  - Docker server version: `29.5.3`.
+  - Docker backend: WSL2, with `docker-desktop` running.
+- Started Phase 2 database service.
+  - Command shape: `docker compose -f infra\docker-compose.yml up -d postgres`.
+  - Result: pulled `pgvector/pgvector:pg16`.
+  - Result: created Docker network `infra_default`.
+  - Result: created named volume `postgres_data`.
+  - Result: started container `infra-postgres-1`.
+- Verified container status.
+  - `docker compose -f infra\docker-compose.yml ps` showed `infra-postgres-1` up on port `5432`.
+  - `pg_isready` inside the container returned `accepting connections`.
+- Verified pgvector.
+  - `pg_available_extensions` showed `vector` default version `0.8.2`.
+  - Ran `CREATE EXTENSION IF NOT EXISTS vector`.
+  - `pg_extension` showed installed extension `vector 0.8.2`.
+- Verified backend database access.
+  - Ran a uv-managed Python check from `apps/api`.
+  - Loaded `DATABASE_URL` from `apps/api/.env.example`.
+  - Connected successfully with psycopg to database `prompt_engine` as user `prompt_engine`.
+- Updated Phase 2 documentation from blocked to complete.
+
+### Phase 3 Backend API Skeleton Execution
+
+- Read `execution-reports/phases/phase-03-backend-api-skeleton.md`, current status, and existing API scaffold.
+  - Result: Phase 3 required FastAPI routers, schemas, rule-based services, and initial endpoint flow.
+- Checked InsForge CLI skill for backend relevance.
+  - Result: not applicable because this phase is local FastAPI work, not a managed InsForge backend.
+- Added backend modules:
+  - `apps/api/app/config.py`
+  - `apps/api/app/db.py`
+  - `apps/api/app/models.py`
+  - `apps/api/app/schemas.py`
+  - `apps/api/app/services/classifier.py`
+  - `apps/api/app/services/question_generator.py`
+  - `apps/api/app/services/prompt_generator.py`
+  - `apps/api/app/services/prompt_scorer.py`
+  - `apps/api/app/services/llm_client.py`
+  - `apps/api/app/routers/health.py`
+  - `apps/api/app/routers/sessions.py`
+  - `apps/api/app/routers/prompts.py`
+- Updated `apps/api/app/main.py`.
+  - Result: app now includes health, session, and prompt routers.
+- Implemented Phase 3 endpoints:
+  - `GET /health`
+  - `POST /sessions`
+  - `GET /sessions/{session_id}`
+  - `POST /sessions/{session_id}/classify`
+  - `POST /sessions/{session_id}/questions`
+  - `POST /sessions/{session_id}/answers`
+  - `POST /sessions/{session_id}/generate-prompts`
+  - `POST /sessions/{session_id}/score-prompts`
+  - `POST /sessions/{session_id}/run-prompt`
+  - `POST /prompts/{prompt_id}/save`
+  - `GET /saved-prompts`
+- Kept Phase 3 state in memory.
+  - Reason: SQLAlchemy database persistence belongs to Phase 4.
+- Verified backend import.
+  - `uv --directory apps/api run python main.py` passed.
+- Verified backend compilation.
+  - `uv run python -m compileall app` passed from `apps/api`.
+- Verified the full API flow with FastAPI `TestClient`.
+  - Health returned `200` and database status `ok`.
+  - Session creation returned `201`.
+  - Classification returned `software_project_building`, `troubleshoot`, and `low`.
+  - Clarifying questions returned at least 2 questions.
+  - Answers were recorded.
+  - Prompt generation returned 3 variants.
+  - Prompt scoring returned dimensions and a recommended prompt id.
+  - Invalid prompt run returned `404`.
+  - Prompt run returned the Phase 3 Ollama/model stub.
+  - Prompt save returned `201`.
+  - Saved prompt listing returned the saved prompt.
+- Verification note:
+  - FastAPI emitted a `StarletteDeprecationWarning` from `TestClient` recommending `httpx2`; tests still passed.
+- Started the API dev server with Uvicorn.
+  - URL: `http://127.0.0.1:8000`.
+  - Verified `GET /health` over HTTP returned service status `ok` and database status `ok`.
+- Updated Phase 3 documentation.
+  - Updated `execution-reports/phases/phase-03-backend-api-skeleton.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated root `README.md`.
+  - Updated `EXECUTION_LOG.md`.
+  - Updated `apps/api/README.md`.
+
+### Phase 4 Database Models Execution
+
+- Read `execution-reports/phases/phase-04-database-models.md`, current status, and Phase 3 backend modules.
+  - Result: Phase 4 required database models for sessions, prompts, scores, saved prompts, prompt sources, embeddings, users, and domain packs.
+- Checked InsForge CLI skill for backend relevance.
+  - Result: not applicable because this phase uses local FastAPI, SQLAlchemy, and local Docker Postgres rather than a managed InsForge backend.
+- Replaced the Phase 3 in-memory persistence layer.
+  - Updated `apps/api/app/models.py` with SQLAlchemy ORM models.
+  - Updated `apps/api/app/db.py` with engine/session/bootstrap logic and a database-backed store.
+  - Updated `apps/api/app/main.py` with FastAPI lifespan schema initialization.
+  - Updated `apps/api/app/routers/sessions.py` to persist questions, answers, prompt variants, and score state.
+- Added SQLAlchemy models for all Phase 4 core tables.
+  - `users`
+  - `problem_sessions`
+  - `clarifying_questions`
+  - `prompt_variants`
+  - `prompt_scores`
+  - `saved_prompts`
+  - `prompt_sources`
+  - `prompt_embeddings`
+  - `domain_packs`
+- Selected local migration strategy.
+  - Use `Base.metadata.create_all()` for local MVP schema bootstrapping.
+  - Defer Alembic or another migration tool until schema churn warrants it.
+- Selected pgvector strategy.
+  - Enable `vector` extension during schema bootstrap.
+  - Use pgvector `vector(1536)` for `prompt_embeddings.embedding`.
+  - Leave embedding generation itself for future retrieval phases.
+- Fixed SQLAlchemy driver URL handling.
+  - Public env remains `postgresql://...`.
+  - SQLAlchemy internally uses `postgresql+psycopg://...` because the backend dependency is `psycopg` v3.
+- Verified database initialization.
+  - Ran `init_database()`.
+  - Confirmed pgvector extension `vector 0.8.2`.
+  - Confirmed all 9 Phase 4 tables exist in Postgres.
+  - Confirmed `prompt_embeddings.embedding` uses the `vector` type.
+- Verified the persisted API flow.
+  - Health returned database status `ok`.
+  - Session creation wrote a `problem_sessions` row.
+  - Clarifying questions wrote `clarifying_questions` rows.
+  - Prompt generation wrote 3 active `prompt_variants` rows.
+  - Prompt scoring wrote 3 `prompt_scores` rows.
+  - Prompt save wrote a `saved_prompts` row.
+  - Persisted row counts after smoke test: 1 session, 2 questions, 3 prompt variants, 3 scores, and 1 saved prompt.
+- Updated Phase 4 documentation.
+  - Updated `execution-reports/phases/phase-04-database-models.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated root `README.md`.
+  - Updated `EXECUTION_LOG.md`.
+  - Updated `apps/api/README.md`.
+
+### Phase 5 Prompt Engine V1 Execution
+
+- Read `execution-reports/phases/phase-05-prompt-engine-v1.md`, current status, and current backend services/routes.
+  - Result: Phase 5 required the first complete prompt pipeline.
+- Checked InsForge CLI skill for backend relevance.
+  - Result: not applicable because this phase uses local FastAPI, SQLAlchemy, and local Docker Postgres rather than a managed InsForge backend.
+- Added prompt-engine orchestration.
+  - Added `apps/api/app/services/prompt_engine.py`.
+  - Added `PromptEngineRunRequest` and `PromptEngineRunResponse`.
+  - Added `POST /sessions/{session_id}/run-pipeline`.
+- Expanded prompt generation.
+  - Implemented all planned Phase 5 strategies: `diagnostic`, `beginner_step_by_step`, `expert_consultant`, `safety_first`, `comparison`, and `questions_first`.
+  - Added deterministic strategy selection based on risk, clarification need, intent, and skill level.
+- Expanded deterministic scoring.
+  - Kept the planned dimensions: clarity, specificity, safety, actionability, domain fit, beginner friendliness, and expected answer quality.
+  - Added safety-first weighting for risky or `safe_only` runs.
+  - Added questions-first weighting when required clarification is still missing.
+  - Added deterministic tie-breaking by score, strategy priority, and title.
+- Verified backend import and compilation.
+  - `uv run python -m compileall app` passed from `apps/api`.
+  - `uv --directory apps/api run python main.py` passed.
+- Verified the Phase 5 pipeline with FastAPI `TestClient`.
+  - High-risk gas/furnace input classified as `high` risk.
+  - High-risk safe-only run generated and recommended `safety_first`.
+  - All 3 variants had title, strategy, prompt text, score, and explanation.
+  - Pipeline returned a `ready` timeline state.
+  - Answered software troubleshooting flow completed with `needs_clarification = false`.
+  - Both test sessions persisted 3 prompt score rows.
+- Verification note:
+  - FastAPI emitted a `StarletteDeprecationWarning` from `TestClient` recommending `httpx2`; tests still passed.
+- Restarted the live API server.
+  - URL: `http://127.0.0.1:8000`.
+  - Verified `GET /health` returned status `ok` and database status `ok`.
+  - Verified live `POST /sessions/{session_id}/run-pipeline` for high-risk safe-only input returned 3 prompts and recommended `safety_first`.
+- Updated Phase 5 documentation.
+  - Updated `execution-reports/phases/phase-05-prompt-engine-v1.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated root `README.md`.
+  - Updated `EXECUTION_LOG.md`.
+  - Updated `apps/api/README.md`.
+
+### Phase 6 Frontend MVP Execution
+
+- Read `execution-reports/phases/phase-06-frontend-mvp.md` and inspected the current Next.js scaffold.
+  - Result: frontend was still the generated Next.js starter page.
+- Added local API client.
+  - Added `apps/web/src/lib/api.ts`.
+  - Result: typed calls for health, session creation, pipeline run, run-prompt, save prompt, and saved prompt listing.
+- Added main workspace UI.
+  - Added `apps/web/src/components/prompt-workspace.tsx`.
+  - Replaced `apps/web/src/app/page.tsx`.
+  - Result: first screen is the working PromptPilot workspace, not a landing page.
+- Added secondary views and routes.
+  - Added `/sessions/[id]`.
+  - Added `/compare/[id]`.
+  - Added `/library`.
+  - Added `/settings`.
+  - Added `SavedLibrary` and `SettingsView` components.
+- Added local frontend/backend integration support.
+  - Updated `apps/api/app/main.py` with CORS for `localhost:3000` and `127.0.0.1:3000`.
+- Implemented Phase 6 UX surface.
+  - Problem input.
+  - Clarifying question answers.
+  - Prompt tuner controls.
+  - Prompt cards with score bars.
+  - Compare mode.
+  - Timeline.
+  - Copy, run, save, refresh, and compare actions.
+  - Saved prompt library.
+  - Runtime/settings view.
+- Ran frontend checks.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed.
+- Ran backend checks after CORS and refresh bug fix.
+  - `uv run python -m compileall app` passed from `apps/api`.
+  - `uv --directory apps/api run python main.py` passed.
+- Started local dev servers.
+  - API: `http://127.0.0.1:8000`.
+  - Web: `http://127.0.0.1:3000`.
+- Browser verification.
+  - The in-app browser surface was unavailable in this session.
+  - Used temporary Playwright verification against local Microsoft Edge as fallback.
+  - Verified workspace load, API status, problem entry, tuner selection, generation, answer refresh, compare mode, run action, save action, and saved prompt display in `/library`.
+  - Inspected generated workspace and library screenshots.
+- Fixed a backend bug discovered during frontend browser verification.
+  - Symptom: refreshing the pipeline after answering clarifying questions returned a backend 500.
+  - Cause: clarifying question replacement deleted and reinserted rows in one flush, violating the unique `(session_id, question_key)` index.
+  - Fix: delete existing question rows and flush before inserting replacements.
+- Cleaned up temporary Playwright spec, screenshots, and test-results artifacts.
+- Updated Phase 6 documentation.
+  - Updated `execution-reports/phases/phase-06-frontend-mvp.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated root `README.md`.
+  - Updated `EXECUTION_LOG.md`.
+  - Replaced generated `apps/web/README.md`.

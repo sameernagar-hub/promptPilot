@@ -7,3 +7,44 @@ Run locally from the repository root:
 ```powershell
 uv --directory apps/api run uvicorn app.main:app --reload
 ```
+
+Health check:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+```
+
+Phase 3 endpoints:
+
+- `GET /health`
+- `POST /sessions`
+- `GET /sessions/{session_id}`
+- `POST /sessions/{session_id}/classify`
+- `POST /sessions/{session_id}/questions`
+- `POST /sessions/{session_id}/answers`
+- `POST /sessions/{session_id}/generate-prompts`
+- `POST /sessions/{session_id}/score-prompts`
+- `POST /sessions/{session_id}/run-pipeline`
+- `POST /sessions/{session_id}/run-prompt`
+- `POST /prompts/{prompt_id}/save`
+- `GET /saved-prompts`
+
+Phase 4 persistence:
+
+- The API uses SQLAlchemy with local Postgres.
+- Tables are bootstrapped locally with `Base.metadata.create_all()`.
+- pgvector is enabled before table creation.
+- `prompt_embeddings.embedding` uses pgvector `vector(1536)`.
+- Formal migration tooling is deferred until schema churn justifies it.
+
+Phase 5 pipeline endpoint:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/sessions/{session_id}/run-pipeline `
+  -ContentType 'application/json' `
+  -Body '{"settings":{"length":"medium","skill_level":"practical","tone":"friendly","format":"guide","risk":"normal","sources":"none"}}'
+```
+
+The pipeline runs locally without an external LLM. It classifies, generates clarifying questions, merges supplied answers/settings, creates 3 prompt variants, scores them, and returns a deterministic recommendation.

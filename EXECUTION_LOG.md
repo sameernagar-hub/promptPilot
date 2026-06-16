@@ -709,23 +709,23 @@ The first screen should be the working product. Avoid a generic landing page dur
 
 Use this checklist when starting implementation:
 
-- [ ] Confirm local tool versions.
-- [ ] Create monorepo folder structure.
-- [ ] Initialize Next.js frontend.
-- [ ] Initialize FastAPI backend.
-- [ ] Add Docker Compose with Postgres/pgvector.
-- [ ] Add root README and env examples.
-- [ ] Implement health endpoint.
-- [ ] Implement session creation endpoint.
-- [ ] Implement rule-based classifier.
-- [ ] Implement clarifying question generator.
-- [ ] Implement prompt variant generator.
-- [ ] Implement prompt scorer.
-- [ ] Build main frontend workspace.
-- [ ] Wire frontend to backend.
-- [ ] Add save/copy/run actions.
-- [ ] Add basic prompt library page.
-- [ ] Add prompt compare view.
+- [x] Confirm local tool versions.
+- [x] Create monorepo folder structure.
+- [x] Initialize Next.js frontend.
+- [x] Initialize FastAPI backend.
+- [x] Add Docker Compose with Postgres/pgvector.
+- [x] Add root README and env examples.
+- [x] Implement health endpoint.
+- [x] Implement session creation endpoint.
+- [x] Implement rule-based classifier.
+- [x] Implement clarifying question generator.
+- [x] Implement prompt variant generator.
+- [x] Implement prompt scorer.
+- [x] Build main frontend workspace.
+- [x] Wire frontend to backend.
+- [x] Add save/copy/run actions.
+- [x] Add basic prompt library page.
+- [x] Add prompt compare view.
 - [ ] Add tests/evals.
 - [ ] Add DSPy integration.
 - [ ] Add prompt knowledge base ingestion.
@@ -736,8 +736,8 @@ Use this checklist when starting implementation:
 
 ## Current Status
 
-Status: Phase 1 monorepo boilerplate complete.
+Status: Phase 6 frontend MVP complete.
 
 Next recommended step:
 
-Add local infrastructure for Postgres and pgvector with Docker Compose.
+Start Phase 7: prompt knowledge base.

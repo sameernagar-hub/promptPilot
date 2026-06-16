@@ -4,7 +4,7 @@ This folder is the project control center for PromptPilot. It tracks what has be
 
 ## Current Rule
 
-Phase 1 monorepo boilerplate is complete. Do not add infrastructure, database models, or prompt-engine behavior until the user gives the next instruction for Phase 2.
+Phase 6 frontend MVP is complete. The next implementation phase is Phase 7: prompt knowledge base.
 
 ## Files
 

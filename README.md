@@ -75,7 +75,7 @@ AI and evaluation:
 
 ## Current Status
 
-Current project status: Phase 1 is complete. The local environment is ready, the monorepo scaffold exists, and the project is prepared for Phase 2 infrastructure work.
+Current project status: Phase 6 frontend MVP is complete. The local environment, monorepo scaffold, local Postgres/pgvector service, FastAPI workflow, SQLAlchemy persistence, deterministic prompt pipeline, and working Next.js workspace are ready.
 
 Completed so far:
 
@@ -88,11 +88,25 @@ Completed so far:
 - Next.js frontend is initialized in `apps/web`.
 - FastAPI backend is initialized in `apps/api`.
 - Shared package, docs, scripts, datasets, evals, and infra folders are present.
+- Postgres/pgvector local infrastructure is defined in `infra/docker-compose.yml`.
+- API database and Ollama environment values are present in `apps/api/.env.example`.
+- The `pgvector/pgvector:pg16` image pulls successfully.
+- The local Postgres container starts, accepts connections, and has pgvector `0.8.2` enabled.
+- Backend API skeleton modules, routers, schemas, and rule-based services are implemented.
+- The API can create sessions, classify problems, ask clarifying questions, record answers, generate prompt variants, score them, run a Phase 3 stub, save prompts, and list saved prompts.
+- SQLAlchemy models exist for users, sessions, clarifying questions, prompt variants, prompt scores, saved prompts, prompt sources, prompt embeddings, and domain packs.
+- The API workflow now persists sessions, questions, prompt variants, scores, and saved prompts to Postgres.
+- `prompt_embeddings.embedding` uses pgvector `vector(1536)` for future retrieval work.
+- Prompt engine V1 can run the complete local pipeline without an external LLM.
+- `POST /sessions/{session_id}/run-pipeline` classifies, asks questions, merges answers/settings, generates 3 variants, scores them, and selects a deterministic recommendation.
+- All six planned prompt strategies are implemented: `diagnostic`, `beginner_step_by_step`, `expert_consultant`, `safety_first`, `comparison`, and `questions_first`.
+- Frontend MVP workspace is implemented at `/`.
+- Frontend routes exist for `/sessions/[id]`, `/compare/[id]`, `/library`, and `/settings`.
+- The workspace can generate, compare, copy, run, save, and refresh prompt variants against the local API.
 
 Not started yet:
 
-- Database infrastructure
-- Prompt engine implementation
+- Prompt knowledge base ingestion
 - Production application UI
 
 ## Planning Documents
@@ -107,6 +121,6 @@ Not started yet:
 
 ## Next Step
 
-The next implementation step is Phase 2: add local infrastructure with Docker Compose, Postgres, and pgvector.
+The next implementation step is Phase 7: prompt knowledge base.
 
 The current frontend is still the generated Next.js starter. The PromptPilot workspace UI begins in Phase 6.
