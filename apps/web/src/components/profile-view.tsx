@@ -8,6 +8,7 @@ import {
   MessageSquare,
   RefreshCw,
   Sparkles,
+  UploadCloud,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -94,6 +95,9 @@ export function ProfileView() {
             <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/library">
               Library
             </Link>
+            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/profile/imports">
+              Imports
+            </Link>
             <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/settings">
               Settings
             </Link>
@@ -172,7 +176,13 @@ export function ProfileView() {
               <Brain className="size-4" />
               No profile observations yet
             </div>
-            Local prompt sessions will appear here after profile refresh.
+            <Link
+              href="/profile/imports"
+              className="inline-flex items-center gap-2 rounded-md text-[#1e4d45] hover:underline"
+            >
+              <UploadCloud className="size-4" />
+              Add chat imports
+            </Link>
           </section>
         )}
       </div>

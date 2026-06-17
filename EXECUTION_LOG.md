@@ -883,8 +883,8 @@ Use this checklist when starting implementation:
 - [x] Add prompt compare view.
 - [x] Add prompting profile foundation.
 - [x] Add prompting trait detection.
-- [ ] Add chat history import and integration foundation.
-- [ ] Add open domain detection and confirmation.
+- [x] Add chat history import and integration foundation.
+- [x] Add open domain detection and confirmation.
 - [ ] Add clarification-first prompt refinement.
 - [ ] Add advanced controls and platform-aware prompt output.
 - [ ] Add profile Q&A dashboard.
@@ -895,8 +895,8 @@ Use this checklist when starting implementation:
 
 ## Current Status
 
-Status: Phase 8 prompting trait detection complete.
+Status: Phase 10 open domain detection and confirmation complete.
 
 Next recommended step:
 
-Start Phase 9: Chat History Import and Integration Foundation.
+Start Phase 11: Clarification-First Prompt Refinement.

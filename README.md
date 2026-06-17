@@ -79,9 +79,9 @@ AI and evaluation:
 
 ## Current Status
 
-Current project status: Phase 8 prompting trait detection is complete. The local environment, monorepo scaffold, local Postgres/pgvector service, FastAPI workflow, SQLAlchemy persistence, deterministic prompt pipeline, working Next.js workspace, profile dashboard, and trait signal detector are ready.
+Current project status: Phase 10 open domain detection and confirmation is complete. The local environment, monorepo scaffold, local Postgres/pgvector service, FastAPI workflow, SQLAlchemy persistence, guided Next.js workspace, profile dashboard, trait signal detector, chat import foundation, and domain confirmation flow are ready.
 
-Roadmap status: the plan has pivoted from a prompt knowledge base first to a user-experience-led prompting profile system. Phase 9 is now Chat History Import and Integration Foundation.
+Roadmap status: the plan has pivoted from a prompt knowledge base first to a user-experience-led prompting profile system. Phase 11 is next: Clarification-First Prompt Refinement.
 
 Completed so far:
 
@@ -116,11 +116,18 @@ Completed so far:
 - Phase 8 adds `prompting_trait_signals` and the `trait_detector_v1` analyzer.
 - Profile observations now roll up per-example signals with evidence levels and representative signal explanations.
 - The `/profile` dashboard shows evidence level badges, signal counts, and signal explanations.
+- Phase 9 adds user-provided chat import endpoints at `/imports`.
+- Chat imports normalize pasted text and JSON-style exports into conversations and messages.
+- Imported messages redact obvious API keys, bearer tokens, emails, and phone numbers in the API preview.
+- Import delete and reprocess controls refresh derived profile observations.
+- The frontend has a `/profile/imports` review workflow with platform/source controls, upload, redaction status, import ledger, preview, reprocess, and delete actions.
+- Phase 10 replaces the fixed-domain classifier with an open-domain detector that returns subdomain, evidence, alternatives, and confirmation state.
+- `POST /sessions/{session_id}/domain-confirmation` stores user-confirmed or user-corrected domains.
+- Prompt generation uses confirmed domains and now leads with one readable recommended prompt before alternatives.
+- The workspace now hides advanced preferences by default, shows a full recommended prompt, supports domain confirmation, and includes three theme options.
 
 Not started yet:
 
-- Chat history import and integration foundation
-- Open domain detection with domain confirmation
 - Clarification-first prompt refinement
 - Platform-aware prompt output for Codex, Claude, ChatGPT, Gemini, and other AI systems
 - Profile Q&A and prompting insight dashboard
@@ -137,6 +144,6 @@ Not started yet:
 
 ## Next Step
 
-The next implementation step is Phase 9: Chat History Import and Integration Foundation.
+The next implementation step is Phase 11: Clarification-First Prompt Refinement.
 
-This phase should add user-provided chat imports, transcript normalization, redaction status, and import review flows.
+This phase should make refinement explicitly ask critical questions before recommending the final prompt, carry assumptions when details are skipped, and use the profile/preferences without crowding the main workflow.

@@ -2,7 +2,19 @@ from app.schemas import ClarifyingQuestion, ClassificationResponse
 
 
 DOMAIN_QUESTIONS = {
-    "car_home_troubleshooting": [
+    "bicycle_repair": [
+        (
+            "symptoms",
+            "What exactly is wrong with the bike?",
+            "A repair prompt needs the observed symptom before suggesting diagnostics.",
+        ),
+        (
+            "bike_context",
+            "What kind of bike is it, and what changed recently?",
+            "Bike type and recent changes narrow the likely mechanical causes.",
+        ),
+    ],
+    "automotive_repair": [
         (
             "symptoms",
             "What exact symptoms do you see, hear, smell, or notice?",
@@ -14,7 +26,19 @@ DOMAIN_QUESTIONS = {
             "Recent changes and attempted fixes narrow the likely causes.",
         ),
     ],
-    "software_project_building": [
+    "home_repair": [
+        (
+            "symptoms",
+            "What exact symptoms do you see, hear, smell, or notice?",
+            "The prompt needs observable details before suggesting diagnostics.",
+        ),
+        (
+            "recent_changes",
+            "What changed recently, and what have you already tried?",
+            "Recent changes and attempted fixes narrow the likely causes.",
+        ),
+    ],
+    "software_engineering": [
         (
             "tech_stack",
             "What stack, framework, language, or tool versions are involved?",
@@ -26,7 +50,7 @@ DOMAIN_QUESTIONS = {
             "The model needs a concrete target for debugging or implementation.",
         ),
     ],
-    "writing_business_communication": [
+    "writing_communication": [
         (
             "audience",
             "Who is the audience, and what outcome should the message achieve?",
@@ -48,6 +72,54 @@ DOMAIN_QUESTIONS = {
             "output_goal",
             "Do you want a summary, study plan, comparison, examples, or sources?",
             "The output format determines how the research prompt should be framed.",
+        ),
+    ],
+    "business_strategy": [
+        (
+            "business_goal",
+            "What decision or business outcome should the answer support?",
+            "Business prompts need a clear decision target.",
+        ),
+        (
+            "constraints",
+            "What constraints, market, audience, or timeline matter?",
+            "Constraints keep the answer from becoming generic.",
+        ),
+    ],
+    "health_wellness": [
+        (
+            "situation",
+            "What is the situation, and what kind of information do you need?",
+            "Health prompts need context and a clear non-diagnostic boundary.",
+        ),
+        (
+            "boundaries",
+            "Should the answer stay educational, suggest questions for a professional, or compare options?",
+            "The prompt should avoid pretending to replace professional care.",
+        ),
+    ],
+    "legal_financial": [
+        (
+            "jurisdiction_or_context",
+            "What location, document, account, or context is involved?",
+            "Legal and financial prompts depend heavily on context.",
+        ),
+        (
+            "decision_needed",
+            "What decision do you need help preparing for?",
+            "The prompt should support decision preparation without overclaiming.",
+        ),
+    ],
+    "creative_media": [
+        (
+            "creative_goal",
+            "What should the final creative output be?",
+            "Creative prompts need a concrete deliverable.",
+        ),
+        (
+            "style_constraints",
+            "What style, audience, channel, or references should guide it?",
+            "Style and audience make creative output less generic.",
         ),
     ],
     "general_problem_solving": [

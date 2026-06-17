@@ -24,10 +24,21 @@ export type SessionResponse = {
 
 export type ClassificationResponse = {
   domain: string;
+  primary_domain: string | null;
+  subdomain: string | null;
   intent: string;
   risk_level: string;
   confidence: number;
   signals: string[];
+  evidence: {
+    type: string;
+    label: string;
+    signals: string[];
+  }[];
+  alternative_domains: string[];
+  needs_domain_confirmation: boolean;
+  confirmed_domain: string | null;
+  domain_source: "detected" | "user_confirmed" | "user_corrected";
 };
 
 export type ClarifyingQuestion = {
@@ -91,9 +102,11 @@ export type TraitObservation = {
   evidence: {
     type: string;
     session_id?: string;
+    imported_message_id?: string;
     excerpt?: string;
     domain?: string | null;
     intent?: string | null;
+    risk_level?: string | null;
     created_at?: string;
   }[];
   signals: {
@@ -134,6 +147,8 @@ export type PromptProfile = {
     headline?: string;
     session_count?: number;
     import_count?: number;
+    imported_message_count?: number;
+    signal_count?: number;
     strongest_traits?: {
       trait_key: string;
       score: number;
@@ -148,6 +163,74 @@ export type PromptProfile = {
   traits: TraitObservation[];
   created_at: string;
   updated_at: string;
+};
+
+export type ImportPlatform =
+  | "manual"
+  | "codex"
+  | "claude"
+  | "chatgpt"
+  | "gemini"
+  | "cursor"
+  | "windsurf"
+  | "generic";
+
+export type ImportSourceType = "paste" | "markdown" | "json" | "text" | "manual";
+
+export type ConversationImportRequest = {
+  platform: ImportPlatform;
+  source_type: ImportSourceType;
+  title?: string | null;
+  raw_text: string;
+};
+
+export type ImportedMessage = {
+  id: string;
+  role: string;
+  text: string;
+  redacted: boolean;
+  position: number;
+  message_timestamp: string | null;
+  created_at: string;
+};
+
+export type ImportedConversation = {
+  id: string;
+  import_id: string;
+  platform: string;
+  external_conversation_id: string | null;
+  title: string | null;
+  message_count: number;
+  messages: ImportedMessage[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type ConversationImport = {
+  id: string;
+  profile_id: string;
+  platform: string;
+  source_type: string;
+  title: string | null;
+  consent_status: string;
+  redaction_status: "clean" | "redacted" | "pending" | string;
+  conversation_count: number;
+  message_count: number;
+  import_metadata: {
+    normalizer_version?: string;
+    input_format?: string;
+    redaction_count?: number;
+    redaction_types?: string[];
+    message_count?: number;
+  };
+  conversations: ImportedConversation[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type DomainConfirmationResponse = {
+  session_id: string;
+  classification: ClassificationResponse;
 };
 
 export const defaultSettings: PromptSettings = {
@@ -225,6 +308,23 @@ export async function runPipeline(
   });
 }
 
+export async function confirmDomain(
+  sessionId: string,
+  confirmedDomain: string,
+  accepted: boolean,
+) {
+  return request<DomainConfirmationResponse>(
+    `/sessions/${sessionId}/domain-confirmation`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        confirmed_domain: confirmedDomain,
+        accepted,
+      }),
+    },
+  );
+}
+
 export async function runPrompt(sessionId: string, promptId: string) {
   return request<RunPromptResponse>(`/sessions/${sessionId}/run-prompt`, {
     method: "POST",
@@ -251,5 +351,29 @@ export async function refreshProfile() {
   return request<PromptProfile>("/profile/refresh", {
     method: "POST",
     body: JSON.stringify({}),
+  });
+}
+
+export async function getImports() {
+  return request<ConversationImport[]>("/imports");
+}
+
+export async function createImport(payload: ConversationImportRequest) {
+  return request<ConversationImport>("/imports", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function reprocessImport(importId: string) {
+  return request<ConversationImport>(`/imports/${importId}/reprocess`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function deleteImport(importId: string) {
+  return request<{ id: string; deleted: boolean }>(`/imports/${importId}`, {
+    method: "DELETE",
   });
 }

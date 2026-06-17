@@ -696,3 +696,74 @@ This changelog records every meaningful command, check, file edit, and project-c
   - Updated `execution-reports/CURRENT_STATUS.md`.
   - Updated `execution-reports/README.md`.
   - Updated `execution-reports/phases/phase-08-prompting-trait-detection.md`.
+
+### Phase 9 Chat History Import And Integration Foundation Execution
+
+- Implemented the Phase 9 import backend.
+  - Added `ConversationImportRequest`, import response schemas, imported conversation/message response shapes, and delete response schema.
+  - Added `chat_import_normalizer_v1` for pasted transcripts, message-list JSON, ChatGPT-style mapping JSON, and generic conversation JSON.
+  - Added redaction for obvious secrets, OpenAI-style keys, bearer tokens, emails, and phone numbers.
+  - Added import storage service that writes normalized imports into `conversation_imports`, `imported_conversations`, and `imported_messages`.
+  - Added cleanup logic so deleting an import removes derived trait signals before deleting imported messages.
+  - Added `/imports` API endpoints for create, list, read, reprocess, and delete.
+- Implemented the Phase 9 frontend workflow.
+  - Added `/profile/imports`.
+  - Added `ImportsView` with platform/source controls, transcript entry, import ledger, redaction status, redacted preview, reprocess, and delete actions.
+  - Linked the profile dashboard to the import workflow.
+- Verification.
+  - `uv run python -m compileall app` passed.
+  - SQLAlchemy mapper configuration passed and registered 20 ORM tables.
+  - FastAPI `TestClient` import smoke passed: create import, verify redaction, read import, refresh profile from imported messages, reprocess import, delete import, and confirm deletion.
+  - `uv --directory apps/api run python main.py` passed.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed and included `/profile/imports`.
+  - Restarted the API dev server on `http://127.0.0.1:8000` because the previous process predated the new router.
+  - In-app Browser was unavailable; Microsoft Edge Playwright fallback verified `/profile/imports` import, redacted preview, and delete cleanup.
+- Updated documentation and status files.
+  - Updated `README.md`.
+  - Updated `EXECUTION_LOG.md`.
+  - Updated `apps/api/README.md`.
+  - Updated `apps/web/README.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated `execution-reports/phases/phase-09-chat-history-import-integration-foundation.md`.
+
+### Phase 10 Open Domain Detection And UX Correction Execution
+
+- Implemented the Phase 10 classifier and confirmation backend.
+  - Extended `ClassificationResponse` with primary domain, subdomain, evidence, alternatives, confirmation state, confirmed domain, and domain source.
+  - Replaced the fixed starter-domain classifier with a broader deterministic open-domain detector.
+  - Added domains including bicycle repair, automotive repair, home repair, software engineering, business strategy, health and wellness, legal or financial, and creative media.
+  - Added `POST /sessions/{session_id}/domain-confirmation`.
+  - Stored confirmed and corrected domains in `domain_confirmations`.
+  - Updated the prompt engine to preserve confirmed domains across reruns.
+- Corrected the main workspace UX based on user feedback.
+  - Replaced the crowded three-column control-heavy surface with a guided request flow.
+  - Made one full recommended prompt the primary output.
+  - Moved alternatives behind an `Alternatives` toggle.
+  - Hid advanced preferences behind `Preferences`.
+  - Added domain confirmation/correction UI.
+  - Added three workspace themes.
+  - Fixed generated prompt visibility by removing the clipped prompt-card primary path.
+- Improved prompt generation.
+  - Added `recommended_prompt` as the first-class strategy.
+  - Added domain-specific expert roles, including a mechanical engineer / bicycle repair specialist role for bike repair prompts.
+  - Injected answered clarifying details into the recommended prompt.
+- Improved imports.
+  - Added a file upload button for `.txt`, `.md`, `.markdown`, and `.json` files.
+- Verification.
+  - `uv run python -m compileall app` passed.
+  - SQLAlchemy mapper configuration passed and registered 20 ORM tables.
+  - FastAPI `TestClient` Phase 10 smoke passed for bike classification, domain confirmation, domain correction, rerun preservation, and detail injection.
+  - `uv --directory apps/api run python main.py` passed.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed.
+  - In-app Browser was unavailable; Microsoft Edge Playwright fallback verified the guided workflow, domain confirmation, answers feeding the prompt, alternatives toggle, theme switcher, and import upload button.
+- Updated documentation and status files.
+  - Updated `README.md`.
+  - Updated `EXECUTION_LOG.md`.
+  - Updated `apps/api/README.md`.
+  - Updated `apps/web/README.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated `execution-reports/phases/phase-10-open-domain-detection-confirmation.md`.

@@ -5,6 +5,8 @@ from app.schemas import (
     ClarifyingQuestionsResponse,
     ClassificationResponse,
     CreateSessionRequest,
+    DomainConfirmationRequest,
+    DomainConfirmationResponse,
     GeneratePromptsRequest,
     PromptEngineRunRequest,
     PromptEngineRunResponse,
@@ -16,7 +18,7 @@ from app.schemas import (
     SessionResponse,
     SubmitAnswersRequest,
 )
-from app.services.classifier import classify_problem
+from app.services.classifier import apply_domain_confirmation, classify_problem
 from app.services.llm_client import run_prompt
 from app.services.prompt_engine import run_prompt_engine
 from app.services.prompt_generator import generate_prompt_variants
@@ -64,6 +66,36 @@ def classify_session(session_id: str) -> ClassificationResponse:
     session.touch("classified")
     store.upsert_session(session)
     return classification
+
+
+@router.post("/{session_id}/domain-confirmation", response_model=DomainConfirmationResponse)
+def confirm_session_domain(
+    session_id: str,
+    payload: DomainConfirmationRequest,
+) -> DomainConfirmationResponse:
+    session = _get_session_or_404(session_id)
+    classification = (
+        ClassificationResponse.model_validate(session.classification)
+        if session.classification
+        else classify_problem(session.raw_input)
+    )
+    confirmed = apply_domain_confirmation(
+        classification,
+        confirmed_domain=payload.confirmed_domain,
+        accepted=payload.accepted,
+    )
+    session = store.confirm_session_domain(
+        session_id=session.id,
+        classification=confirmed.model_dump(),
+        confirmed_domain=confirmed.domain,
+        domain_source=confirmed.domain_source,
+        confidence=confirmed.confidence,
+        evidence=confirmed.evidence,
+    )
+    return DomainConfirmationResponse(
+        session_id=session.id,
+        classification=ClassificationResponse.model_validate(session.classification),
+    )
 
 
 @router.post("/{session_id}/questions", response_model=ClarifyingQuestionsResponse)

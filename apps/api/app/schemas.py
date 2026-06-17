@@ -10,6 +10,17 @@ Tone = Literal["direct", "friendly", "technical"]
 PromptFormat = Literal["checklist", "guide", "table", "conversation", "plan"]
 RiskPreference = Literal["safe_only", "normal", "advanced"]
 SourcePreference = Literal["none", "web", "official_docs"]
+ImportPlatform = Literal[
+    "manual",
+    "codex",
+    "claude",
+    "chatgpt",
+    "gemini",
+    "cursor",
+    "windsurf",
+    "generic",
+]
+ImportSourceType = Literal["paste", "markdown", "json", "text", "manual"]
 
 
 class PromptSettings(BaseModel):
@@ -28,10 +39,27 @@ class CreateSessionRequest(BaseModel):
 
 class ClassificationResponse(BaseModel):
     domain: str
+    primary_domain: str | None = None
+    subdomain: str | None = None
     intent: str
     risk_level: str
     confidence: float
     signals: list[str] = Field(default_factory=list)
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    alternative_domains: list[str] = Field(default_factory=list)
+    needs_domain_confirmation: bool = False
+    confirmed_domain: str | None = None
+    domain_source: Literal["detected", "user_confirmed", "user_corrected"] = "detected"
+
+
+class DomainConfirmationRequest(BaseModel):
+    confirmed_domain: str = Field(..., min_length=2, max_length=160)
+    accepted: bool = True
+
+
+class DomainConfirmationResponse(BaseModel):
+    session_id: str
+    classification: ClassificationResponse
 
 
 class ClarifyingQuestion(BaseModel):
@@ -186,6 +214,56 @@ class PromptProfileResponse(BaseModel):
     traits: list[TraitObservationResponse] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+
+
+class ConversationImportRequest(BaseModel):
+    platform: ImportPlatform = "manual"
+    source_type: ImportSourceType = "paste"
+    title: str | None = Field(default=None, max_length=240)
+    raw_text: str = Field(..., min_length=1, max_length=250_000)
+
+
+class ImportedMessageResponse(BaseModel):
+    id: str
+    role: str
+    text: str
+    redacted: bool
+    position: int
+    message_timestamp: datetime | None = None
+    created_at: datetime
+
+
+class ImportedConversationResponse(BaseModel):
+    id: str
+    import_id: str
+    platform: str
+    external_conversation_id: str | None = None
+    title: str | None = None
+    message_count: int
+    messages: list[ImportedMessageResponse] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConversationImportResponse(BaseModel):
+    id: str
+    profile_id: str
+    platform: str
+    source_type: str
+    title: str | None = None
+    consent_status: str
+    redaction_status: str
+    conversation_count: int
+    message_count: int
+    import_metadata: dict[str, Any] = Field(default_factory=dict)
+    conversations: list[ImportedConversationResponse] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConversationImportDeleteResponse(BaseModel):
+    id: str
+    deleted: bool
 
 
 class HealthResponse(BaseModel):

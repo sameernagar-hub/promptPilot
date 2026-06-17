@@ -13,12 +13,13 @@ SCORING_KEYS = [
 ]
 
 STRATEGY_PRIORITY = {
-    "safety_first": 0,
-    "diagnostic": 1,
-    "questions_first": 2,
-    "beginner_step_by_step": 3,
-    "expert_consultant": 4,
-    "comparison": 5,
+    "recommended_prompt": 0,
+    "safety_first": 1,
+    "diagnostic": 2,
+    "questions_first": 3,
+    "beginner_step_by_step": 4,
+    "expert_consultant": 5,
+    "comparison": 6,
 }
 
 
@@ -33,6 +34,7 @@ def _score_prompt(
     problem_terms = {term.strip(".,:;!?()[]") for term in problem.lower().split()}
     matched_terms = [term for term in problem_terms if len(term) > 3 and term in text]
     is_safety_first = prompt.strategy == "safety_first"
+    is_recommended = prompt.strategy == "recommended_prompt"
     is_questions_first = prompt.strategy == "questions_first"
     is_beginner = prompt.strategy == "beginner_step_by_step"
     is_expert = prompt.strategy == "expert_consultant"
@@ -40,17 +42,22 @@ def _score_prompt(
     risk_bonus = risk_level in {"medium", "high"} or settings.risk == "safe_only"
 
     scores = {
-        "clarity": 0.86 if is_questions_first else 0.82,
+        "clarity": 0.9 if is_recommended else (0.86 if is_questions_first else 0.82),
         "specificity": min(0.95, 0.58 + (0.04 * len(matched_terms))),
         "safety": 0.96 if is_safety_first else (0.9 if "risk" in text or "safest" in text else 0.74),
-        "actionability": 0.9 if "next" in text or "plan" in text else 0.72,
+        "actionability": 0.94 if is_recommended else (0.9 if "next" in text or "plan" in text else 0.72),
         "domain_fit": min(0.94, 0.64 + (0.03 * len(matched_terms))),
         "beginner_friendliness": 0.94 if settings.skill_level == "beginner" or is_beginner else 0.78,
-        "expected_answer_quality": 0.88 if is_expert or is_comparison else 0.84,
+        "expected_answer_quality": 0.9 if is_recommended or is_expert or is_comparison else 0.84,
     }
     if risk_bonus and is_safety_first:
         scores["safety"] = 0.99
         scores["expected_answer_quality"] = max(scores["expected_answer_quality"], 0.88)
+    if is_recommended:
+        scores["specificity"] = max(scores["specificity"], 0.9)
+        scores["safety"] = max(scores["safety"], 0.88)
+        scores["domain_fit"] = max(scores["domain_fit"], 0.9)
+        scores["beginner_friendliness"] = max(scores["beginner_friendliness"], 0.84)
     if needs_clarification and is_questions_first:
         scores["clarity"] = 0.94
         scores["specificity"] = max(scores["specificity"], 0.86)

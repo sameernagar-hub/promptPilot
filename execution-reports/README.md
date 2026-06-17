@@ -4,7 +4,7 @@ This folder is the project control center for PromptPilot. It tracks what has be
 
 ## Current Rule
 
-Phase 8 prompting trait detection is complete. The roadmap has pivoted toward user prompting profiles and guided refinement. The next implementation phase is Phase 9: Chat History Import and Integration Foundation.
+Phase 10 open domain detection and confirmation is complete. The roadmap has pivoted toward user prompting profiles and guided refinement. The next implementation phase is Phase 11: Clarification-First Prompt Refinement.
 
 ## Files
 

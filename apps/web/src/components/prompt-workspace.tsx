@@ -3,18 +3,22 @@
 import {
   Check,
   Copy,
+  FileText,
   GitCompare,
+  Moon,
+  Palette,
   Play,
   RefreshCw,
   Save,
-  ShieldCheck,
-  SlidersHorizontal,
+  Settings2,
   Sparkles,
+  Sun,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  confirmDomain,
   createSession,
   defaultSettings,
   getHealth,
@@ -26,28 +30,21 @@ import {
   runPrompt,
   savePrompt,
 } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type WorkspaceProps = {
   initialSessionId?: string;
   initialCompare?: boolean;
 };
 
-const sampleProblems = [
-  "My React app saves successfully but the UI stays stale after clicking save.",
-  "I smell gas near my furnace and need a safe troubleshooting plan.",
-  "I need to write a firm but respectful email to a client about a missed deadline.",
-];
+type ThemeName = "sage" | "ink" | "paper";
 
-const timelineLabels: Record<string, string> = {
-  classified: "Classified",
-  questions_ready: "Questions",
-  answers_recorded: "Answers",
-  prompts_generated: "Generated",
-  prompts_scored: "Scored",
-  ready: "Ready",
-};
+const sampleProblems = [
+  "I need my bike fixed",
+  "My React app saves successfully but the UI stays stale after clicking save.",
+  "I need a better prompt for researching competitors in a new market.",
+];
 
 const settingOptions = {
   length: ["short", "medium", "deep"],
@@ -58,27 +55,80 @@ const settingOptions = {
   sources: ["none", "web", "official_docs"],
 } as const;
 
+const themeStyles: Record<
+  ThemeName,
+  {
+    icon: React.ReactNode;
+    page: string;
+    header: string;
+    card: string;
+    subtle: string;
+    border: string;
+    primary: string;
+    primaryText: string;
+    soft: string;
+    input: string;
+  }
+> = {
+  sage: {
+    icon: <Palette className="size-4" />,
+    page: "bg-[#f6f7f2] text-[#1d2523]",
+    header: "border-[#d9ded2] bg-[#fbfcf7]",
+    card: "border-[#d9ded2] bg-white",
+    subtle: "text-[#65736f]",
+    border: "border-[#d9ded2]",
+    primary: "bg-[#1e4d45]",
+    primaryText: "text-[#1e4d45]",
+    soft: "bg-[#edf1e8]",
+    input: "border-[#ccd4ca] bg-[#fbfcf7] focus:ring-[#4f7f74]/20",
+  },
+  ink: {
+    icon: <Moon className="size-4" />,
+    page: "bg-[#101417] text-[#f3f5ee]",
+    header: "border-[#2b3338] bg-[#151b1f]",
+    card: "border-[#2b3338] bg-[#171e22]",
+    subtle: "text-[#9ba7a5]",
+    border: "border-[#2b3338]",
+    primary: "bg-[#d6f36b]",
+    primaryText: "text-[#d6f36b]",
+    soft: "bg-[#232b2f]",
+    input: "border-[#344047] bg-[#101417] focus:ring-[#d6f36b]/20",
+  },
+  paper: {
+    icon: <Sun className="size-4" />,
+    page: "bg-[#fafafa] text-[#202124]",
+    header: "border-[#dddddd] bg-white",
+    card: "border-[#dddddd] bg-white",
+    subtle: "text-[#646970]",
+    border: "border-[#dddddd]",
+    primary: "bg-[#2f5f9f]",
+    primaryText: "text-[#2f5f9f]",
+    soft: "bg-[#eef3f8]",
+    input: "border-[#cfd6dd] bg-white focus:ring-[#2f5f9f]/20",
+  },
+};
+
 export function PromptWorkspace({
   initialSessionId,
   initialCompare = false,
 }: WorkspaceProps) {
+  const [theme, setTheme] = useState<ThemeName>("sage");
+  const styles = themeStyles[theme];
   const [problem, setProblem] = useState("");
   const [settings, setSettings] = useState<PromptSettings>(defaultSettings);
-  const [sessionId, setSessionId] = useState<string | null>(
-    initialSessionId ?? null,
-  );
+  const [sessionId, setSessionId] = useState<string | null>(initialSessionId ?? null);
   const [sessionProblem, setSessionProblem] = useState("");
   const [pipeline, setPipeline] = useState<PipelineResponse | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
+  const [customDomain, setCustomDomain] = useState("");
   const [runOutput, setRunOutput] = useState("");
   const [status, setStatus] = useState("Idle");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [compareMode, setCompareMode] = useState(initialCompare);
-  const [apiHealth, setApiHealth] = useState<"ok" | "degraded" | "offline">(
-    "offline",
-  );
+  const [showSettings, setShowSettings] = useState(false);
+  const [showAlternatives, setShowAlternatives] = useState(initialCompare);
+  const [apiHealth, setApiHealth] = useState<"ok" | "degraded" | "offline">("offline");
 
   useEffect(() => {
     getHealth()
@@ -103,18 +153,24 @@ export function PromptWorkspace({
       );
   }, [initialSessionId]);
 
-  const prompts = useMemo(() => pipeline?.prompts ?? [], [pipeline]);
+  const prompts = useMemo(() => pipeline?.prompts ?? [], [pipeline?.prompts]);
+  const recommendedPrompt = useMemo(
+    () =>
+      prompts.find((prompt) => prompt.id === pipeline?.recommended_prompt_id) ??
+      prompts.find((prompt) => prompt.recommendation_label === "recommended") ??
+      prompts[0],
+    [pipeline?.recommended_prompt_id, prompts],
+  );
   const selectedPrompt = useMemo(
     () =>
       prompts.find((prompt) => prompt.id === selectedPromptId) ??
-      prompts.find((prompt) => prompt.id === pipeline?.recommended_prompt_id) ??
-      prompts[0],
-    [pipeline?.recommended_prompt_id, prompts, selectedPromptId],
+      recommendedPrompt,
+    [prompts, recommendedPrompt, selectedPromptId],
   );
 
-  async function generate() {
+  async function generate(nextAnswers = answers) {
     if (!problem.trim()) {
-      setError("Enter a problem before generating prompts.");
+      setError("Enter a problem first.");
       return;
     }
 
@@ -130,13 +186,39 @@ export function PromptWorkspace({
         setSessionId(session.id);
         setSessionProblem(problem.trim());
       }
-      const result = await runPipeline(session.id, settings, answers);
+      const result = await runPipeline(session.id, settings, nextAnswers);
+      setPipeline(result);
+      setSelectedPromptId(result.recommended_prompt_id);
+      setCustomDomain(result.classification.domain.replaceAll("_", " "));
+      setStatus(result.classification.needs_domain_confirmation ? "Confirm domain" : "Ready");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Generation failed");
+      setStatus("Error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDomainConfirm(accepted: boolean) {
+    if (!sessionId || !pipeline) {
+      return;
+    }
+    const domain = accepted ? pipeline.classification.domain : customDomain.trim();
+    if (!domain) {
+      setError("Enter the correct domain.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const confirmed = await confirmDomain(sessionId, domain, accepted);
+      setPipeline({ ...pipeline, classification: confirmed.classification });
+      const result = await runPipeline(sessionId, settings, answers);
       setPipeline(result);
       setSelectedPromptId(result.recommended_prompt_id);
       setStatus("Ready");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Generation failed");
-      setStatus("Error");
+      setError(caught instanceof Error ? caught.message : "Domain update failed");
     } finally {
       setLoading(false);
     }
@@ -182,7 +264,17 @@ export function PromptWorkspace({
     setStatus("Copied");
   }
 
-  const timeline = pipeline?.timeline ?? [];
+  function resetWithSample() {
+    setProblem(sampleProblems[Math.floor(Math.random() * sampleProblems.length)]);
+    setSessionId(null);
+    setSessionProblem("");
+    setPipeline(null);
+    setAnswers({});
+    setSelectedPromptId(null);
+    setRunOutput("");
+    setStatus("Idle");
+  }
+
   const healthClass =
     apiHealth === "ok"
       ? "bg-emerald-500"
@@ -191,40 +283,25 @@ export function PromptWorkspace({
         : "bg-rose-500";
 
   return (
-    <main className="min-h-screen bg-[#f6f7f2] text-[#1d2523]">
-      <header className="border-b border-[#d9ded2] bg-[#fbfcf7]">
-        <div className="mx-auto flex max-w-[1500px] flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
+    <main className={cn("min-h-screen", styles.page)}>
+      <header className={cn("border-b", styles.header)}>
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-md bg-[#1e4d45] text-white">
+            <div className={cn("flex size-9 items-center justify-center rounded-md text-white", styles.primary)}>
               <Sparkles className="size-4" />
             </div>
             <div>
               <h1 className="text-lg font-semibold leading-tight">PromptPilot</h1>
-              <p className="text-xs text-[#65736f]">
-                {sessionId ? `Session ${sessionId.slice(0, 8)}` : "Workspace"}
-              </p>
+              <p className={cn("text-xs", styles.subtle)}>{status}</p>
             </div>
           </div>
           <nav className="flex flex-wrap items-center gap-2 text-sm">
-            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/">
-              Workspace
-            </Link>
-            <Link
-              className="rounded-md px-2 py-1 hover:bg-[#edf1e8]"
-              href={sessionId ? `/compare/${sessionId}` : "/compare/new"}
-            >
-              Compare
-            </Link>
-            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/library">
-              Library
-            </Link>
-            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/profile">
-              Profile
-            </Link>
-            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/settings">
-              Settings
-            </Link>
-            <span className="ml-1 inline-flex items-center gap-2 rounded-md border border-[#d9ded2] bg-white px-2 py-1 text-xs">
+            <Link className={navClass(styles)} href="/">Workspace</Link>
+            <Link className={navClass(styles)} href="/profile">Profile</Link>
+            <Link className={navClass(styles)} href="/profile/imports">Imports</Link>
+            <Link className={navClass(styles)} href="/library">Library</Link>
+            <Link className={navClass(styles)} href="/settings">Settings</Link>
+            <span className={cn("inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs", styles.border, styles.soft)}>
               <span className={cn("size-2 rounded-full", healthClass)} />
               API {apiHealth}
             </span>
@@ -232,48 +309,36 @@ export function PromptWorkspace({
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[1500px] gap-4 px-4 py-4 xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)_minmax(280px,340px)]">
+      <div className="mx-auto grid max-w-6xl gap-4 px-4 py-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <section className="space-y-4">
-          <div className="rounded-md border border-[#d9ded2] bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Problem</h2>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setProblem(sampleProblems[Math.floor(Math.random() * sampleProblems.length)]);
-                  setSessionId(null);
-                  setSessionProblem("");
-                  setPipeline(null);
-                  setAnswers({});
-                  setSelectedPromptId(null);
-                }}
-              >
+          <div className={cardClass(styles)}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold">Request</h2>
+              <Button type="button" size="sm" variant="outline" onClick={resetWithSample}>
                 <RefreshCw />
                 Sample
               </Button>
             </div>
             <textarea
-              className="min-h-40 w-full resize-none rounded-md border border-[#ccd4ca] bg-[#fbfcf7] p-3 text-sm leading-6 outline-none ring-[#4f7f74]/20 focus:ring-4"
+              className={cn("min-h-44 w-full resize-y rounded-md border p-3 text-sm leading-6 outline-none focus:ring-4", styles.input)}
               value={problem}
               onChange={(event) => setProblem(event.target.value)}
-              placeholder="Describe the problem to turn into a strong AI prompt."
+              placeholder="I need my bike fixed"
             />
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button type="button" onClick={generate} disabled={loading}>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button type="button" onClick={() => generate()} disabled={loading}>
                 <Sparkles />
-                {loading ? "Generating" : "Generate"}
+                {loading ? "Thinking" : "Generate prompt"}
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                onClick={generate}
-                disabled={loading || !sessionId}
+                onClick={() => setShowSettings((value) => !value)}
               >
-                <RefreshCw />
-                Refresh
+                <Settings2 />
+                Preferences
               </Button>
+              <ThemePicker theme={theme} onChange={setTheme} />
             </div>
             {error ? (
               <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
@@ -282,163 +347,189 @@ export function PromptWorkspace({
             ) : null}
           </div>
 
-          <div className="rounded-md border border-[#d9ded2] bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center gap-2">
-              <ShieldCheck className="size-4 text-[#1e4d45]" />
-              <h2 className="text-sm font-semibold">Classification</h2>
-            </div>
-            {pipeline ? (
-              <div className="grid gap-2 text-sm">
-                <DomainBadge label={pipeline.classification.domain} />
-                <MetaRow label="Intent" value={pipeline.classification.intent} />
-                <MetaRow label="Risk" value={pipeline.classification.risk_level} />
-                <MetaRow
-                  label="Confidence"
-                  value={`${Math.round(pipeline.classification.confidence * 100)}%`}
-                />
-              </div>
-            ) : (
-              <p className="text-sm text-[#65736f]">Awaiting first run.</p>
-            )}
-          </div>
+          {showSettings ? (
+            <PreferencesPanel settings={settings} onChange={setSettings} styles={styles} />
+          ) : null}
 
-          <ClarifyingQuestions
+          {pipeline ? (
+            <DomainPanel
+              classification={pipeline.classification}
+              customDomain={customDomain}
+              setCustomDomain={setCustomDomain}
+              onConfirm={() => handleDomainConfirm(true)}
+              onCorrect={() => handleDomainConfirm(false)}
+              loading={loading}
+              styles={styles}
+            />
+          ) : null}
+
+          <QuestionsPanel
             questions={pipeline?.questions ?? []}
             answers={answers}
             needsClarification={pipeline?.needs_clarification ?? false}
             onAnswer={(id, answer) =>
               setAnswers((current) => ({ ...current, [id]: answer }))
             }
+            onUpdate={() => generate()}
+            loading={loading}
+            styles={styles}
           />
         </section>
 
-        <section className="min-w-0 space-y-4">
-          <div className="rounded-md border border-[#d9ded2] bg-white p-4 shadow-sm">
-            <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="text-sm font-semibold">Prompt Variants</h2>
-                <p className="text-xs text-[#65736f]">
-                  {prompts.length ? `${prompts.length} scored variants` : "No variants yet"}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant={compareMode ? "default" : "outline"}
-                  onClick={() => setCompareMode((value) => !value)}
-                  disabled={!prompts.length}
-                >
-                  <GitCompare />
-                  Compare
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={copySelectedPrompt}
-                  disabled={!selectedPrompt}
-                >
-                  <Copy />
-                  Copy
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={runSelectedPrompt}
-                  disabled={!selectedPrompt || loading}
-                >
-                  <Play />
-                  Run
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={saveSelectedPrompt}
-                  disabled={!selectedPrompt || loading}
-                >
-                  <Save />
-                  Save
-                </Button>
-              </div>
-            </div>
+        <section className="space-y-4">
+          <RecommendedPrompt
+            prompt={recommendedPrompt}
+            styles={styles}
+            onCopy={copySelectedPrompt}
+            onRun={runSelectedPrompt}
+            onSave={saveSelectedPrompt}
+            loading={loading}
+          />
 
-            {compareMode && prompts.length ? (
-              <PromptCompareGrid
-                prompts={prompts}
-                selectedId={selectedPrompt?.id}
-                onSelect={setSelectedPromptId}
-              />
-            ) : (
-              <div className="grid gap-3">
-                {prompts.length ? (
-                  prompts.map((prompt) => (
-                    <PromptCard
+          {runOutput ? (
+            <div className={cardClass(styles)}>
+              <div className="mb-3 flex items-center gap-2">
+                <Play className={cn("size-4", styles.primaryText)} />
+                <h2 className="text-sm font-semibold">Run Result</h2>
+              </div>
+              <pre className="whitespace-pre-wrap rounded-md bg-[#101417] p-3 text-xs leading-5 text-[#f3f5ee]">
+                {runOutput}
+              </pre>
+            </div>
+          ) : null}
+
+          <div className={cardClass(styles)}>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-3 text-left"
+              onClick={() => setShowAlternatives((value) => !value)}
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <GitCompare className={cn("size-4", styles.primaryText)} />
+                Alternatives
+              </span>
+              <span className={cn("text-xs", styles.subtle)}>
+                {prompts.length ? `${Math.max(prompts.length - 1, 0)} more` : "None"}
+              </span>
+            </button>
+            {showAlternatives ? (
+              <div className="mt-3 grid gap-3">
+                {prompts
+                  .filter((prompt) => prompt.id !== recommendedPrompt?.id)
+                  .map((prompt) => (
+                    <AlternativePrompt
                       key={prompt.id}
                       prompt={prompt}
                       selected={prompt.id === selectedPrompt?.id}
                       onSelect={() => setSelectedPromptId(prompt.id)}
+                      styles={styles}
                     />
-                  ))
-                ) : (
-                  <div className="min-h-80 rounded-md border border-dashed border-[#c8d2ca] bg-[#fbfcf7] p-6 text-sm text-[#65736f]">
-                    No prompt variants yet.
-                  </div>
-                )}
+                  ))}
+                {!prompts.length ? (
+                  <p className={cn("text-sm", styles.subtle)}>Generate once to see alternatives.</p>
+                ) : null}
               </div>
-            )}
+            ) : null}
           </div>
-
-          <RunPromptPanel output={runOutput} selectedPrompt={selectedPrompt} />
         </section>
-
-        <aside className="space-y-4">
-          <PromptTuner settings={settings} onChange={setSettings} />
-          <AgentTimeline timeline={timeline} status={status} />
-        </aside>
       </div>
     </main>
   );
 }
 
-function DomainBadge({ label }: { label: string }) {
+function DomainPanel({
+  classification,
+  customDomain,
+  setCustomDomain,
+  onConfirm,
+  onCorrect,
+  loading,
+  styles,
+}: {
+  classification: PipelineResponse["classification"];
+  customDomain: string;
+  setCustomDomain: (value: string) => void;
+  onConfirm: () => void;
+  onCorrect: () => void;
+  loading: boolean;
+  styles: (typeof themeStyles)[ThemeName];
+}) {
+  const needsConfirmation =
+    classification.needs_domain_confirmation && classification.domain_source === "detected";
   return (
-    <div className="inline-flex w-fit items-center gap-2 rounded-md border border-[#bfd0c2] bg-[#e9f2e9] px-2 py-1 text-xs font-medium text-[#214b40]">
-      <Check className="size-3" />
-      {label.replaceAll("_", " ")}
+    <div className={cardClass(styles)}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Domain</h2>
+          <p className={cn("text-xs", styles.subtle)}>
+            {classification.subdomain ?? "Open request"} / {Math.round(classification.confidence * 100)}%
+          </p>
+        </div>
+        <span className={cn("rounded-md px-2 py-1 text-xs", needsConfirmation ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800")}>
+          {needsConfirmation ? "Confirm" : "Set"}
+        </span>
+      </div>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <span className={cn("rounded-md px-2 py-1 text-sm font-medium", styles.soft)}>
+          {labelize(classification.domain)}
+        </span>
+        {classification.alternative_domains.slice(0, 3).map((domain) => (
+          <button
+            key={domain}
+            type="button"
+            className={cn("rounded-md border px-2 py-1 text-sm", styles.border)}
+            onClick={() => setCustomDomain(labelize(domain))}
+          >
+            {labelize(domain)}
+          </button>
+        ))}
+      </div>
+      {needsConfirmation ? (
+        <div className="space-y-2">
+          <input
+            className={cn("h-9 w-full rounded-md border px-3 text-sm outline-none focus:ring-4", styles.input)}
+            value={customDomain}
+            onChange={(event) => setCustomDomain(event.target.value)}
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" onClick={onConfirm} disabled={loading}>
+              <Check />
+              Yes
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={onCorrect} disabled={loading}>
+              Use typed domain
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function MetaRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-[#eef1ec] py-1 last:border-0">
-      <span className="text-[#65736f]">{label}</span>
-      <span className="font-medium">{value.replaceAll("_", " ")}</span>
-    </div>
-  );
-}
-
-function ClarifyingQuestions({
+function QuestionsPanel({
   questions,
   answers,
   needsClarification,
   onAnswer,
+  onUpdate,
+  loading,
+  styles,
 }: {
   questions: { id: string; question: string; reason: string; required: boolean }[];
   answers: Record<string, string>;
   needsClarification: boolean;
   onAnswer: (id: string, answer: string) => void;
+  onUpdate: () => void;
+  loading: boolean;
+  styles: (typeof themeStyles)[ThemeName];
 }) {
   return (
-    <div className="rounded-md border border-[#d9ded2] bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Clarifying Questions</h2>
-        {needsClarification ? (
-          <span className="rounded-md bg-amber-100 px-2 py-1 text-xs text-amber-800">
-            Open
-          </span>
-        ) : questions.length ? (
-          <span className="rounded-md bg-emerald-100 px-2 py-1 text-xs text-emerald-800">
-            Covered
+    <div className={cardClass(styles)}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold">Questions</h2>
+        {questions.length ? (
+          <span className={cn("rounded-md px-2 py-1 text-xs", needsClarification ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800")}>
+            {needsClarification ? "Open" : "Covered"}
           </span>
         ) : null}
       </div>
@@ -448,229 +539,192 @@ function ClarifyingQuestions({
             <label className="block" key={question.id}>
               <span className="mb-1 block text-sm font-medium">{question.question}</span>
               <input
-                className="h-9 w-full rounded-md border border-[#ccd4ca] bg-[#fbfcf7] px-3 text-sm outline-none ring-[#4f7f74]/20 focus:ring-4"
+                className={cn("h-9 w-full rounded-md border px-3 text-sm outline-none focus:ring-4", styles.input)}
                 value={answers[question.id] ?? ""}
                 onChange={(event) => onAnswer(question.id, event.target.value)}
               />
             </label>
           ))
         ) : (
-          <p className="text-sm text-[#65736f]">Questions appear after generation.</p>
+          <p className={cn("text-sm", styles.subtle)}>Questions appear after generation.</p>
         )}
       </div>
+      {questions.length ? (
+        <Button className="mt-3" type="button" variant="outline" onClick={onUpdate} disabled={loading}>
+          <RefreshCw />
+          Update prompt
+        </Button>
+      ) : null}
     </div>
   );
 }
 
-function PromptTuner({
-  settings,
-  onChange,
+function RecommendedPrompt({
+  prompt,
+  styles,
+  onCopy,
+  onRun,
+  onSave,
+  loading,
 }: {
-  settings: PromptSettings;
-  onChange: (settings: PromptSettings) => void;
+  prompt?: PromptVariant;
+  styles: (typeof themeStyles)[ThemeName];
+  onCopy: () => void;
+  onRun: () => void;
+  onSave: () => void;
+  loading: boolean;
 }) {
   return (
-    <div className="rounded-md border border-[#d9ded2] bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2">
-        <SlidersHorizontal className="size-4 text-[#1e4d45]" />
-        <h2 className="text-sm font-semibold">Tuner</h2>
+    <div className={cardClass(styles)}>
+      <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold">Recommended Prompt</h2>
+          <p className={cn("text-xs", styles.subtle)}>
+            {prompt?.score_total ? `${Math.round(prompt.score_total * 100)} score` : "Ready after generation"}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={onCopy} disabled={!prompt}>
+            <Copy />
+            Copy
+          </Button>
+          <Button type="button" variant="outline" onClick={onRun} disabled={!prompt || loading}>
+            <Play />
+            Run
+          </Button>
+          <Button type="button" variant="outline" onClick={onSave} disabled={!prompt || loading}>
+            <Save />
+            Save
+          </Button>
+        </div>
       </div>
-      <div className="space-y-4">
-        {(Object.keys(settingOptions) as (keyof PromptSettings)[]).map((key) => (
-          <div key={key}>
-            <div className="mb-2 text-xs font-semibold uppercase text-[#65736f]">
-              {key.replace("_", " ")}
-            </div>
-            <div className="grid grid-cols-2 gap-1 min-[380px]:grid-cols-3">
-              {settingOptions[key].map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={cn(
-                    "h-8 rounded-md border px-2 text-xs font-medium transition",
-                    settings[key] === option
-                      ? "border-[#1e4d45] bg-[#1e4d45] text-white"
-                      : "border-[#d9ded2] bg-[#fbfcf7] text-[#34413e] hover:bg-[#edf1e8]",
-                  )}
-                  onClick={() => onChange({ ...settings, [key]: option })}
-                >
-                  {option.replace("_", " ")}
-                </button>
-              ))}
-            </div>
+      {prompt ? (
+        <div className={cn("rounded-md border p-4", styles.border, styles.soft)}>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <FileText className={cn("size-4", styles.primaryText)} />
+            <span className="font-medium">{prompt.title}</span>
+            <span className="rounded-md bg-emerald-100 px-2 py-1 text-xs text-emerald-800">
+              Recommended
+            </span>
           </div>
-        ))}
-      </div>
+          <pre className="whitespace-pre-wrap break-words text-sm leading-7">
+            {prompt.prompt_text}
+          </pre>
+        </div>
+      ) : (
+        <div className={cn("min-h-80 rounded-md border border-dashed p-6 text-sm", styles.border, styles.subtle)}>
+          No prompt generated yet.
+        </div>
+      )}
     </div>
   );
 }
 
-function PromptCard({
+function AlternativePrompt({
   prompt,
   selected,
   onSelect,
+  styles,
 }: {
   prompt: PromptVariant;
   selected: boolean;
   onSelect: () => void;
+  styles: (typeof themeStyles)[ThemeName];
 }) {
   return (
     <button
       type="button"
+      className={cn("rounded-md border p-3 text-left", styles.border, selected ? styles.soft : "")}
       onClick={onSelect}
-      className={cn(
-        "w-full rounded-md border bg-white p-4 text-left shadow-sm transition hover:border-[#78958e]",
-        selected ? "border-[#1e4d45] ring-4 ring-[#b9d7ce]" : "border-[#d9ded2]",
-      )}
     >
-      <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-semibold">{prompt.title}</h3>
-            {prompt.recommendation_label === "recommended" ? (
-              <span className="rounded-md bg-[#dbebe0] px-2 py-1 text-xs text-[#214b40]">
-                Recommended
-              </span>
-            ) : null}
-          </div>
-          <p className="text-xs text-[#65736f]">{prompt.strategy.replaceAll("_", " ")}</p>
+          <h3 className="text-sm font-semibold">{prompt.title}</h3>
+          <p className={cn("text-xs", styles.subtle)}>{labelize(prompt.strategy)}</p>
         </div>
-        <div className="text-2xl font-semibold text-[#1e4d45]">
+        <span className={cn("text-sm font-semibold", styles.primaryText)}>
           {prompt.score_total ? Math.round(prompt.score_total * 100) : "--"}
-        </div>
+        </span>
       </div>
-      <ScoreBars scores={prompt.score_breakdown} />
-      <p className="mt-3 line-clamp-4 whitespace-pre-wrap text-sm leading-6 text-[#34413e]">
+      <p className={cn("mt-2 line-clamp-3 text-xs leading-5", styles.subtle)}>
         {prompt.prompt_text}
       </p>
     </button>
   );
 }
 
-function PromptCompareGrid({
-  prompts,
-  selectedId,
-  onSelect,
+function PreferencesPanel({
+  settings,
+  onChange,
+  styles,
 }: {
-  prompts: PromptVariant[];
-  selectedId?: string;
-  onSelect: (id: string) => void;
+  settings: PromptSettings;
+  onChange: (settings: PromptSettings) => void;
+  styles: (typeof themeStyles)[ThemeName];
 }) {
   return (
-    <div className="grid gap-3 lg:grid-cols-3">
-      {prompts.map((prompt) => (
+    <div className={cardClass(styles)}>
+      <div className="mb-3 flex items-center gap-2">
+        <Settings2 className={cn("size-4", styles.primaryText)} />
+        <h2 className="text-sm font-semibold">Preferences</h2>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {(Object.keys(settingOptions) as (keyof PromptSettings)[]).map((key) => (
+          <label className="space-y-1 text-xs font-medium" key={key}>
+            <span>{labelize(key)}</span>
+            <select
+              className={cn("h-9 w-full rounded-md border px-2 text-sm outline-none focus:ring-4", styles.input)}
+              value={settings[key]}
+              onChange={(event) => onChange({ ...settings, [key]: event.target.value })}
+            >
+              {settingOptions[key].map((option) => (
+                <option key={option} value={option}>
+                  {labelize(option)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ThemePicker({
+  theme,
+  onChange,
+}: {
+  theme: ThemeName;
+  onChange: (theme: ThemeName) => void;
+}) {
+  return (
+    <div className="flex rounded-md border border-black/10 bg-white/70 p-1">
+      {(Object.keys(themeStyles) as ThemeName[]).map((name) => (
         <button
+          key={name}
           type="button"
-          key={prompt.id}
-          onClick={() => onSelect(prompt.id)}
           className={cn(
-            "min-h-[420px] rounded-md border bg-[#fbfcf7] p-3 text-left shadow-sm",
-            selectedId === prompt.id ? "border-[#1e4d45]" : "border-[#d9ded2]",
+            "flex size-8 items-center justify-center rounded-md text-[#1d2523]",
+            theme === name ? "bg-[#1e4d45] text-white" : "hover:bg-black/5",
           )}
+          onClick={() => onChange(name)}
+          title={name}
         >
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold">{prompt.title}</h3>
-            <span className="text-lg font-semibold text-[#1e4d45]">
-              {prompt.score_total ? Math.round(prompt.score_total * 100) : "--"}
-            </span>
-          </div>
-          <ScoreBars scores={prompt.score_breakdown} compact />
-          <p className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap text-xs leading-5 text-[#34413e]">
-            {prompt.prompt_text}
-          </p>
+          {themeStyles[name].icon}
         </button>
       ))}
     </div>
   );
 }
 
-function ScoreBars({
-  scores,
-  compact = false,
-}: {
-  scores: Record<string, number>;
-  compact?: boolean;
-}) {
-  const entries = Object.entries(scores);
-  if (!entries.length) {
-    return null;
-  }
-  return (
-    <div className="grid gap-2">
-      {entries.map(([key, value]) => (
-        <div className="grid grid-cols-[minmax(110px,160px)_1fr_34px] items-center gap-2" key={key}>
-          <span className={cn("truncate text-[#65736f]", compact ? "text-[11px]" : "text-xs")}>
-            {key.replaceAll("_", " ")}
-          </span>
-          <span className="h-2 overflow-hidden rounded-full bg-[#dfe5dd]">
-            <span
-              className="block h-full rounded-full bg-[#1e4d45]"
-              style={{ width: `${Math.round(value * 100)}%` }}
-            />
-          </span>
-          <span className="text-right text-xs font-medium">{Math.round(value * 100)}</span>
-        </div>
-      ))}
-    </div>
-  );
+function cardClass(styles: (typeof themeStyles)[ThemeName]) {
+  return cn("rounded-md border p-4 shadow-sm", styles.card);
 }
 
-function AgentTimeline({
-  timeline,
-  status,
-}: {
-  timeline: string[];
-  status: string;
-}) {
-  const steps = ["classified", "questions_ready", "prompts_generated", "prompts_scored", "ready"];
-  return (
-    <div className="rounded-md border border-[#d9ded2] bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Timeline</h2>
-        <span className="rounded-md bg-[#edf1e8] px-2 py-1 text-xs">{status}</span>
-      </div>
-      <div className="space-y-2">
-        {steps.map((step) => {
-          const done = timeline.includes(step);
-          return (
-            <div className="flex items-center gap-2" key={step}>
-              <span
-                className={cn(
-                  "flex size-5 items-center justify-center rounded-full border",
-                  done
-                    ? "border-[#1e4d45] bg-[#1e4d45] text-white"
-                    : "border-[#c8d2ca] bg-[#fbfcf7]",
-                )}
-              >
-                {done ? <Check className="size-3" /> : null}
-              </span>
-              <span className="text-sm">{timelineLabels[step]}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+function navClass(styles: (typeof themeStyles)[ThemeName]) {
+  return cn("rounded-md px-2 py-1 hover:opacity-80", styles.soft);
 }
 
-function RunPromptPanel({
-  output,
-  selectedPrompt,
-}: {
-  output: string;
-  selectedPrompt?: PromptVariant;
-}) {
-  return (
-    <div className="rounded-md border border-[#d9ded2] bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Run Result</h2>
-        <span className="max-w-52 truncate text-xs text-[#65736f]">
-          {selectedPrompt?.title ?? "No prompt selected"}
-        </span>
-      </div>
-      <pre className="min-h-28 whitespace-pre-wrap rounded-md bg-[#1d2523] p-3 text-xs leading-5 text-[#e8efe8]">
-        {output || "Run output appears here."}
-      </pre>
-    </div>
-  );
+function labelize(value: string) {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }

@@ -7,6 +7,7 @@ from app.config import get_settings
 from app.models import (
     Base,
     ClarifyingQuestion,
+    DomainConfirmation,
     ProblemSession,
     PromptScore,
     PromptVariant,
@@ -204,6 +205,35 @@ class DatabaseStore:
         with SessionLocal() as database:
             statement = select(SavedPrompt).order_by(SavedPrompt.created_at.desc())
             return list(database.scalars(statement))
+
+    def confirm_session_domain(
+        self,
+        session_id: str,
+        classification: dict,
+        confirmed_domain: str,
+        domain_source: str,
+        confidence: float,
+        evidence: list[dict],
+    ) -> ProblemSession:
+        with SessionLocal() as database:
+            db_session = _get_session_for_update(database, session_id)
+            db_session.detected_domain = confirmed_domain
+            db_session.detected_intent = classification.get("intent")
+            db_session.risk_level = classification.get("risk_level")
+            db_session.classification = classification
+            db_session.touch("domain_confirmed")
+            database.add(
+                DomainConfirmation(
+                    session_id=db_session.id,
+                    detected_domain=classification.get("primary_domain"),
+                    confirmed_domain=confirmed_domain,
+                    domain_source=domain_source,
+                    confidence=confidence,
+                    evidence=evidence,
+                )
+            )
+            database.commit()
+        return self.get_session(session_id) or db_session
 
 
 def _get_session_for_update(database: Session, session_id: str) -> ProblemSession:

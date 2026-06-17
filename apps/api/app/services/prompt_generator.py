@@ -3,6 +3,7 @@ from app.schemas import PromptSettings
 
 
 PROMPT_STRATEGIES = [
+    "recommended_prompt",
     "diagnostic",
     "beginner_step_by_step",
     "expert_consultant",
@@ -23,6 +24,21 @@ def _settings_lines(settings: PromptSettings) -> list[str]:
     ]
 
 
+DOMAIN_ROLES = {
+    "bicycle_repair": "a mechanical engineer and bicycle repair specialist",
+    "automotive_repair": "an experienced automotive diagnostic technician",
+    "home_repair": "a careful home repair diagnostician",
+    "software_engineering": "a senior software engineer",
+    "writing_communication": "a communication strategist and editor",
+    "learning_research": "a patient research coach",
+    "business_strategy": "a pragmatic business strategy advisor",
+    "health_wellness": "a careful health information assistant",
+    "legal_financial": "a cautious legal and financial research assistant",
+    "creative_media": "a creative director",
+    "general_problem_solving": "a practical problem-solving coach",
+}
+
+
 def _context_lines(session: ProblemSession) -> list[str]:
     lines = [f"Problem: {session.raw_input}"]
     if session.detected_domain:
@@ -38,6 +54,46 @@ def _context_lines(session: ProblemSession) -> list[str]:
             for question_id, answer in sorted(session.answers.items())
         )
     return lines
+
+
+def _domain_label(session: ProblemSession) -> str:
+    classification = session.classification or {}
+    domain = session.detected_domain or classification.get("domain") or "general_problem_solving"
+    confirmed = classification.get("confirmed_domain")
+    source = classification.get("domain_source", "detected")
+    label = str(confirmed or domain).replace("_", " ")
+    if source in {"user_confirmed", "user_corrected"}:
+        return f"{label} (confirmed)"
+    return label
+
+
+def _role_for_session(session: ProblemSession) -> str:
+    classification = session.classification or {}
+    domain = str(session.detected_domain or classification.get("domain") or "general_problem_solving")
+    return DOMAIN_ROLES.get(domain, f"a domain expert in {domain.replace('_', ' ')}")
+
+
+def _question_lines(session: ProblemSession) -> list[str]:
+    unanswered = [
+        question
+        for question in session.question_rows
+        if question.required and not question.answer
+    ]
+    if not unanswered:
+        return ["- Ask one short follow-up only if a critical detail is missing."]
+    return [
+        f"- {question.question}"
+        for question in unanswered[:4]
+    ]
+
+
+def _known_detail_lines(session: ProblemSession) -> list[str]:
+    if not session.answers:
+        return ["- No extra details provided yet."]
+    return [
+        f"- {question_id.replace('_', ' ')}: {answer}"
+        for question_id, answer in sorted(session.answers.items())
+    ]
 
 
 def _format_instruction(settings: PromptSettings) -> str:
@@ -64,7 +120,7 @@ def choose_prompt_strategies(
     settings: PromptSettings,
     needs_clarification: bool,
 ) -> list[str]:
-    strategies: list[str] = []
+    strategies: list[str] = ["recommended_prompt"]
 
     if session.risk_level in {"medium", "high"} or settings.risk == "safe_only":
         strategies.append("safety_first")
@@ -93,14 +149,41 @@ def choose_prompt_strategies(
 
 def _prompt_for_strategy(
     strategy: str,
-    context: str,
+    session: ProblemSession,
     settings: PromptSettings,
+    context: str,
     settings_block: str,
 ) -> tuple[str, str]:
     format_instruction = _format_instruction(settings)
     length_instruction = _length_instruction(settings)
+    role = _role_for_session(session)
+    domain = _domain_label(session)
+    questions = "\n".join(_question_lines(session))
+    known_details = "\n".join(_known_detail_lines(session))
 
     templates = {
+        "recommended_prompt": (
+            "Recommended Prompt",
+            (
+                f"You are {role}. Help with this problem using practical, domain-specific judgment.\n\n"
+                f"Problem: {session.raw_input}\n"
+                f"Domain: {domain}\n"
+                f"Intent: {(session.detected_intent or 'clarify and solve').replace('_', ' ')}\n"
+                f"Risk level: {session.risk_level or 'low'}\n\n"
+                "Known details from the user:\n"
+                f"{known_details}\n\n"
+                "Before giving the final answer, ask only the questions that would materially change the advice:\n"
+                f"{questions}\n\n"
+                "Then produce the answer with this structure:\n"
+                "1. Most likely diagnosis or interpretation\n"
+                "2. What to check first\n"
+                "3. Step-by-step next actions\n"
+                "4. Stop conditions or safety boundaries\n"
+                "5. What information would improve the answer\n\n"
+                f"User preferences:\n{settings_block}\n\n"
+                f"{format_instruction} {length_instruction}"
+            ),
+        ),
         "diagnostic": (
             "Diagnostic Clarifier",
             (
@@ -177,7 +260,7 @@ def generate_prompt_variants(
     selected_strategies = strategies or ["diagnostic", "beginner_step_by_step", "expert_consultant"]
     prompts: list[PromptVariant] = []
     for strategy in selected_strategies:
-        title, prompt_text = _prompt_for_strategy(strategy, context, settings, settings_block)
+        title, prompt_text = _prompt_for_strategy(strategy, session, settings, context, settings_block)
         prompts.append(
             PromptVariant(
                 session_id=session.id,

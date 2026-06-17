@@ -1,6 +1,6 @@
 # Current Status
 
-PromptPilot has completed Phase 8 prompting trait detection. The roadmap has pivoted from prompt-library expansion to a prompting profile and user-experience intelligence direction.
+PromptPilot has completed Phase 10 open domain detection and confirmation. The roadmap has pivoted from prompt-library expansion to a prompting profile and user-experience intelligence direction.
 
 ## Verified Workspace State
 
@@ -8,15 +8,21 @@ PromptPilot has completed Phase 8 prompting trait detection. The roadmap has piv
 - `EXECUTION_LOG.md` exists and contains the product definition, stack recommendation, phase plan, and initial checklist.
 - Monorepo scaffold exists.
 - Next.js frontend exists at `apps/web`.
-- Frontend MVP workspace exists at `/`.
+- Guided frontend workspace exists at `/`.
 - Planned frontend routes exist for sessions, compare, library, and settings.
 - The frontend profile dashboard exists at `/profile`.
+- The frontend chat import review workflow exists at `/profile/imports`.
 - FastAPI backend exists at `apps/api`.
 - Backend API skeleton modules, routers, schemas, and rule services exist.
 - Backend API persistence is backed by SQLAlchemy and local Postgres.
 - Prompt engine V1 pipeline exists and runs without an external LLM.
 - Prompting profile foundation exists and can summarize local sessions into first-pass trait observations.
 - Prompting trait detection now stores per-example signals and aggregates them into evidence-backed observations.
+- Chat import endpoints exist for create, list, read, reprocess, and delete.
+- User-provided chat imports normalize into shared conversations/messages and feed imported user messages into trait detection.
+- Open-domain classification returns subdomain, evidence, alternatives, and confirmation state.
+- Domain confirmation and correction are stored and reused by prompt generation.
+- The workspace now leads with one full recommended prompt, hides advanced preferences by default, includes themes, and keeps alternatives secondary.
 - Phase 4 database tables exist in local Postgres.
 - Shared package exists at `packages/shared`.
 - Phase 2 Docker Compose infrastructure exists at `infra/docker-compose.yml`.
@@ -44,7 +50,7 @@ PromptPilot has completed Phase 8 prompting trait detection. The roadmap has piv
 
 ## Recommended Next Decision
 
-Start Phase 9: Chat History Import and Integration Foundation.
+Start Phase 11: Clarification-First Prompt Refinement.
 
 ## Verified Local Startup URLs
 
@@ -127,3 +133,49 @@ Start Phase 9: Chat History Import and Integration Foundation.
 - `pnpm.cmd --dir apps/web lint` passes.
 - `pnpm.cmd --dir apps/web build` passes.
 - In-app Browser was unavailable; Microsoft Edge Playwright fallback verified `/profile`.
+
+## Phase 9 Verification State
+
+- `/imports` API routes exist for create, list, read, reprocess, and delete.
+- `chat_import_normalizer_v1` handles pasted transcripts, message-list JSON, ChatGPT-style mapping JSON, and generic conversation JSON.
+- Imported previews redact obvious secrets, OpenAI-style keys, bearer tokens, emails, and phone numbers.
+- Deleting an import removes derived trait signals before deleting imported messages, then refreshes the profile.
+- `/profile/imports` provides platform/source controls, transcript input, an import ledger, redaction status, redacted preview, reprocess, and delete actions.
+- `uv run python -m compileall app` passes from `apps/api`.
+- SQLAlchemy mapper configuration passes and registers 20 ORM tables.
+- FastAPI `TestClient` import smoke passed against running Docker/Postgres:
+  - `POST /imports` returned `201`.
+  - Redacted preview hid the fake key and email.
+  - `GET /imports/{id}` returned the normalized import.
+  - `POST /profile/refresh` consumed imported user messages.
+  - `POST /imports/{id}/reprocess` returned `200`.
+  - `DELETE /imports/{id}` returned `200`.
+- `uv --directory apps/api run python main.py` passes.
+- `pnpm.cmd --dir apps/web lint` passes.
+- `pnpm.cmd --dir apps/web build` passes and includes `/profile/imports`.
+- In-app Browser was unavailable; Microsoft Edge Playwright fallback verified `/profile/imports` import, redacted preview, and delete cleanup.
+
+## Phase 10 Verification State
+
+- `ClassificationResponse` includes `primary_domain`, `subdomain`, `evidence`, `alternative_domains`, `needs_domain_confirmation`, `confirmed_domain`, and `domain_source`.
+- The classifier recognizes broader domains such as bicycle repair, automotive repair, home repair, software engineering, business strategy, health and wellness, legal or financial, and creative media.
+- `POST /sessions/{session_id}/domain-confirmation` stores user-confirmed and user-corrected domains in `domain_confirmations`.
+- The prompt engine preserves confirmed domains across reruns.
+- Prompt generation leads with `recommended_prompt` and uses domain-specific roles.
+- User answers are injected into the recommended prompt as known details.
+- The workspace focuses on one full recommended prompt and moves alternatives behind a toggle.
+- Advanced preferences are hidden by default behind `Preferences`.
+- Workspace themes exist for sage, ink, and paper.
+- `/profile/imports` has an upload button for text, Markdown, and JSON files.
+- `uv run python -m compileall app` passes from `apps/api`.
+- SQLAlchemy mapper configuration passes and registers 20 ORM tables.
+- FastAPI `TestClient` Phase 10 smoke passed:
+  - bike prompt classified as `bicycle_repair`
+  - domain confirmation required and stored
+  - corrected domains stored with `user_corrected`
+  - confirmed domains drive regenerated prompts
+  - answered details appear in the recommended prompt
+- `uv --directory apps/api run python main.py` passes.
+- `pnpm.cmd --dir apps/web lint` passes.
+- `pnpm.cmd --dir apps/web build` passes.
+- In-app Browser was unavailable; Microsoft Edge Playwright fallback verified the guided workflow and import upload button.

@@ -27,9 +27,14 @@ App routes:
 - `/compare/[id]`: comparison workspace
 - `/library`: saved prompt library
 - `/profile`: prompting profile dashboard
+- `/profile/imports`: chat import review workflow
 - `/settings`: model and runtime settings
 
 The `/profile` dashboard shows profile metrics, trait cards, evidence level badges, signal counts, representative signals, and evidence links.
+
+The `/` workspace now focuses on a guided flow: request, domain confirmation, clarifying questions, one full recommended prompt, optional alternatives, compact preferences, and theme selection.
+
+The `/profile/imports` workflow supports platform/source selection, transcript entry, file upload, import ledger review, redaction status, redacted message preview, reprocess, and delete.
 
 Verification:
 

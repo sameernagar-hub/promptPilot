@@ -13,6 +13,14 @@ from app.services.prompt_scorer import score_prompt_variants
 from app.services.question_generator import generate_questions
 
 
+def classification_for_session(session: ProblemSession) -> ClassificationResponse:
+    if session.classification:
+        existing = ClassificationResponse.model_validate(session.classification)
+        if existing.domain_source in {"user_confirmed", "user_corrected"}:
+            return existing
+    return classify_problem(session.raw_input)
+
+
 def needs_clarification(
     session: ProblemSession,
     classification: ClassificationResponse,
@@ -36,7 +44,7 @@ def run_prompt_engine(
     timeline: list[str] = []
 
     session.user_settings = settings.model_dump()
-    classification = classify_problem(session.raw_input)
+    classification = classification_for_session(session)
     session.detected_domain = classification.domain
     session.detected_intent = classification.intent
     session.risk_level = classification.risk_level

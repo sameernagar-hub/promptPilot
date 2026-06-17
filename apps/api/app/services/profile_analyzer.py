@@ -314,6 +314,10 @@ def refresh_prompt_profile() -> PromptProfileResponse:
         return _profile_response(database, profile.id)
 
 
+def ensure_local_profile(database) -> UserPromptProfile:
+    return _ensure_profile(database)
+
+
 def _ensure_profile(database) -> UserPromptProfile:
     profile = database.scalar(
         select(UserPromptProfile).where(UserPromptProfile.profile_key == LOCAL_PROFILE_KEY)
