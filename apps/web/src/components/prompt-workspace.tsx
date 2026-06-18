@@ -5,16 +5,22 @@ import {
   Copy,
   FileText,
   GitCompare,
+  History,
+  ListChecks,
   Moon,
   Palette,
+  Pencil,
   Play,
   RefreshCw,
   Save,
   Settings2,
+  SkipForward,
   Sparkles,
   Sun,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -22,10 +28,14 @@ import {
   createSession,
   defaultSettings,
   getHealth,
+  getProfile,
   getSession,
+  ClarifyingQuestionState,
   PipelineResponse,
+  RefinementMode,
   PromptSettings,
   PromptVariant,
+  PromptRevision,
   runPipeline,
   runPrompt,
   savePrompt,
@@ -39,6 +49,8 @@ type WorkspaceProps = {
 };
 
 type ThemeName = "sage" | "ink" | "paper";
+type SettingKey = keyof PromptSettings;
+type QuestionStates = Record<string, ClarifyingQuestionState>;
 
 const sampleProblems = [
   "I need my bike fixed",
@@ -46,19 +58,43 @@ const sampleProblems = [
   "I need a better prompt for researching competitors in a new market.",
 ];
 
-const settingOptions = {
+const settingOptions: {
+  [Key in SettingKey]: readonly PromptSettings[Key][];
+} = {
+  target_platform: ["generic", "codex", "claude", "chatgpt", "gemini", "cursor"],
+  detail_level: ["balanced", "concise", "exhaustive"],
   length: ["short", "medium", "deep"],
   skill_level: ["beginner", "practical", "expert"],
   tone: ["direct", "friendly", "technical"],
+  formality: ["neutral", "casual", "formal"],
+  temperature: ["balanced", "precise", "creative"],
+  reasoning_style: ["ask_first", "direct_answer", "step_by_step", "explore_options"],
+  source_strictness: ["none", "cite_when_needed", "official_only", "evidence_first"],
+  interaction_mode: ["iterative", "one_shot", "agentic"],
   format: ["checklist", "guide", "table", "conversation", "plan"],
   risk: ["safe_only", "normal", "advanced"],
   sources: ["none", "web", "official_docs"],
 } as const;
 
+const settingGroups: { title: string; keys: SettingKey[] }[] = [
+  {
+    title: "Platform",
+    keys: ["target_platform", "interaction_mode", "reasoning_style"],
+  },
+  {
+    title: "Output",
+    keys: ["detail_level", "formality", "temperature", "source_strictness", "format"],
+  },
+  {
+    title: "Legacy Fit",
+    keys: ["length", "skill_level", "tone", "risk", "sources"],
+  },
+];
+
 const themeStyles: Record<
   ThemeName,
   {
-    icon: React.ReactNode;
+    icon: ReactNode;
     page: string;
     header: string;
     card: string;
@@ -116,10 +152,12 @@ export function PromptWorkspace({
   const styles = themeStyles[theme];
   const [problem, setProblem] = useState("");
   const [settings, setSettings] = useState<PromptSettings>(defaultSettings);
+  const [refinementMode, setRefinementMode] = useState<RefinementMode>("refinement");
   const [sessionId, setSessionId] = useState<string | null>(initialSessionId ?? null);
   const [sessionProblem, setSessionProblem] = useState("");
   const [pipeline, setPipeline] = useState<PipelineResponse | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [questionStates, setQuestionStates] = useState<QuestionStates>({});
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [customDomain, setCustomDomain] = useState("");
   const [runOutput, setRunOutput] = useState("");
@@ -137,6 +175,22 @@ export function PromptWorkspace({
   }, []);
 
   useEffect(() => {
+    if (initialSessionId) {
+      return;
+    }
+    getProfile()
+      .then((profile) => {
+        const preference = profile.platform_preferences[0]?.preference;
+        if (preference) {
+          setSettings((current) => mergePromptSettings(current, preference));
+        }
+      })
+      .catch(() => {
+        // Profile defaults are a convenience; the workspace can run without them.
+      });
+  }, [initialSessionId]);
+
+  useEffect(() => {
     if (!initialSessionId) {
       return;
     }
@@ -145,7 +199,16 @@ export function PromptWorkspace({
         setProblem(session.raw_input);
         setSessionProblem(session.raw_input);
         setSettings({ ...defaultSettings, ...session.user_settings });
-        setAnswers(session.answers ?? {});
+        const loadedAnswers: Record<string, string> = { ...(session.answers ?? {}) };
+        const loadedStates: QuestionStates = {};
+        for (const question of session.clarifying_questions ?? []) {
+          loadedStates[question.id] = question.state ?? "unanswered";
+          if (question.answer) {
+            loadedAnswers[question.id] = question.answer;
+          }
+        }
+        setAnswers(loadedAnswers);
+        setQuestionStates(loadedStates);
         setStatus(session.status);
       })
       .catch((caught: unknown) =>
@@ -168,7 +231,44 @@ export function PromptWorkspace({
     [prompts, recommendedPrompt, selectedPromptId],
   );
 
-  async function generate(nextAnswers = answers) {
+  function applyPipelineResult(result: PipelineResponse) {
+    setPipeline(result);
+    setSelectedPromptId(result.recommended_prompt_id);
+    setCustomDomain(result.classification.domain.replaceAll("_", " "));
+    setAnswers((current) => {
+      const merged = { ...current };
+      for (const question of result.questions) {
+        if (question.answer) {
+          merged[question.id] = question.answer;
+        } else if (question.state === "skipped") {
+          merged[question.id] = "";
+        }
+      }
+      return merged;
+    });
+    setQuestionStates((current) => {
+      const merged = { ...current };
+      for (const question of result.questions) {
+        merged[question.id] = question.state ?? "unanswered";
+      }
+      return merged;
+    });
+    if (result.classification.needs_domain_confirmation) {
+      setStatus("Confirm domain");
+    } else if (result.needs_clarification && !result.prompts.length) {
+      setStatus("Answer questions");
+    } else if (result.assumptions.length) {
+      setStatus("Ready with assumptions");
+    } else {
+      setStatus("Ready");
+    }
+  }
+
+  async function generate(
+    nextAnswers = answers,
+    nextQuestionStates = questionStates,
+    nextMode = refinementMode,
+  ) {
     if (!problem.trim()) {
       setError("Enter a problem first.");
       return;
@@ -182,15 +282,22 @@ export function PromptWorkspace({
       const session = shouldCreateSession
         ? await createSession(problem.trim(), settings)
         : { id: sessionId };
+      const submittedAnswers = shouldCreateSession ? {} : nextAnswers;
+      const submittedStates = shouldCreateSession ? {} : nextQuestionStates;
       if (shouldCreateSession) {
         setSessionId(session.id);
         setSessionProblem(problem.trim());
+        setAnswers({});
+        setQuestionStates({});
       }
-      const result = await runPipeline(session.id, settings, nextAnswers);
-      setPipeline(result);
-      setSelectedPromptId(result.recommended_prompt_id);
-      setCustomDomain(result.classification.domain.replaceAll("_", " "));
-      setStatus(result.classification.needs_domain_confirmation ? "Confirm domain" : "Ready");
+      const result = await runPipeline(
+        session.id,
+        settings,
+        submittedAnswers,
+        submittedStates,
+        nextMode,
+      );
+      applyPipelineResult(result);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Generation failed");
       setStatus("Error");
@@ -213,10 +320,14 @@ export function PromptWorkspace({
     try {
       const confirmed = await confirmDomain(sessionId, domain, accepted);
       setPipeline({ ...pipeline, classification: confirmed.classification });
-      const result = await runPipeline(sessionId, settings, answers);
-      setPipeline(result);
-      setSelectedPromptId(result.recommended_prompt_id);
-      setStatus("Ready");
+      const result = await runPipeline(
+        sessionId,
+        settings,
+        answers,
+        questionStates,
+        refinementMode,
+      );
+      applyPipelineResult(result);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Domain update failed");
     } finally {
@@ -270,6 +381,7 @@ export function PromptWorkspace({
     setSessionProblem("");
     setPipeline(null);
     setAnswers({});
+    setQuestionStates({});
     setSelectedPromptId(null);
     setRunOutput("");
     setStatus("Idle");
@@ -328,7 +440,11 @@ export function PromptWorkspace({
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button type="button" onClick={() => generate()} disabled={loading}>
                 <Sparkles />
-                {loading ? "Thinking" : "Generate prompt"}
+                {loading
+                  ? "Thinking"
+                  : refinementMode === "refinement"
+                    ? "Start refinement"
+                    : "Generate prompt"}
               </Button>
               <Button
                 type="button"
@@ -338,6 +454,11 @@ export function PromptWorkspace({
                 <Settings2 />
                 Preferences
               </Button>
+              <ModeToggle
+                mode={refinementMode}
+                onChange={setRefinementMode}
+                styles={styles}
+              />
               <ThemePicker theme={theme} onChange={setTheme} />
             </div>
             {error ? (
@@ -366,9 +487,22 @@ export function PromptWorkspace({
           <QuestionsPanel
             questions={pipeline?.questions ?? []}
             answers={answers}
+            questionStates={questionStates}
             needsClarification={pipeline?.needs_clarification ?? false}
-            onAnswer={(id, answer) =>
-              setAnswers((current) => ({ ...current, [id]: answer }))
+            assumptions={pipeline?.assumptions ?? []}
+            onAnswer={(id, answer) => {
+              setAnswers((current) => ({ ...current, [id]: answer }));
+              setQuestionStates((current) => ({
+                ...current,
+                [id]: answer.trim().length ? "answered" : "unanswered",
+              }));
+            }}
+            onSkip={(id) => {
+              setAnswers((current) => ({ ...current, [id]: "" }));
+              setQuestionStates((current) => ({ ...current, [id]: "skipped" }));
+            }}
+            onRevise={(id) =>
+              setQuestionStates((current) => ({ ...current, [id]: "unanswered" }))
             }
             onUpdate={() => generate()}
             loading={loading}
@@ -378,13 +512,18 @@ export function PromptWorkspace({
 
         <section className="space-y-4">
           <RecommendedPrompt
-            prompt={recommendedPrompt}
+            prompt={selectedPrompt}
+            recommendedPromptId={recommendedPrompt?.id ?? null}
             styles={styles}
             onCopy={copySelectedPrompt}
             onRun={runSelectedPrompt}
             onSave={saveSelectedPrompt}
             loading={loading}
           />
+
+          {pipeline?.revisions.length ? (
+            <RevisionHistory revisions={pipeline.revisions} styles={styles} />
+          ) : null}
 
           {runOutput ? (
             <div className={cardClass(styles)}>
@@ -509,16 +648,32 @@ function DomainPanel({
 function QuestionsPanel({
   questions,
   answers,
+  questionStates,
   needsClarification,
+  assumptions,
   onAnswer,
+  onSkip,
+  onRevise,
   onUpdate,
   loading,
   styles,
 }: {
-  questions: { id: string; question: string; reason: string; required: boolean }[];
+  questions: {
+    id: string;
+    question: string;
+    reason: string;
+    required: boolean;
+    answer?: string | null;
+    state?: ClarifyingQuestionState;
+    revision_count?: number;
+  }[];
   answers: Record<string, string>;
+  questionStates: QuestionStates;
   needsClarification: boolean;
+  assumptions: string[];
   onAnswer: (id: string, answer: string) => void;
+  onSkip: (id: string) => void;
+  onRevise: (id: string) => void;
   onUpdate: () => void;
   loading: boolean;
   styles: (typeof themeStyles)[ThemeName];
@@ -535,24 +690,80 @@ function QuestionsPanel({
       </div>
       <div className="space-y-3">
         {questions.length ? (
-          questions.map((question) => (
-            <label className="block" key={question.id}>
-              <span className="mb-1 block text-sm font-medium">{question.question}</span>
-              <input
-                className={cn("h-9 w-full rounded-md border px-3 text-sm outline-none focus:ring-4", styles.input)}
-                value={answers[question.id] ?? ""}
-                onChange={(event) => onAnswer(question.id, event.target.value)}
-              />
-            </label>
-          ))
+          questions.map((question) => {
+            const state =
+              questionStates[question.id] ?? question.state ?? "unanswered";
+            const isSkipped = state === "skipped";
+            const isAnswered = state === "answered";
+            return (
+              <div className={cn("rounded-md border p-3", styles.border)} key={question.id}>
+                <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                  <label className="block min-w-0 flex-1">
+                    <span className="block text-sm font-medium">{question.question}</span>
+                    <span className={cn("mt-1 block text-xs leading-5", styles.subtle)}>
+                      {question.reason}
+                    </span>
+                  </label>
+                  <span className={questionStateClass(state)}>
+                    {isSkipped
+                      ? "Skipped"
+                      : isAnswered
+                        ? question.revision_count
+                          ? "Revised"
+                          : "Answered"
+                        : question.required
+                          ? "Required"
+                          : "Optional"}
+                  </span>
+                </div>
+                <textarea
+                  className={cn("min-h-20 w-full resize-y rounded-md border p-3 text-sm leading-5 outline-none focus:ring-4", styles.input)}
+                  value={answers[question.id] ?? ""}
+                  onChange={(event) => onAnswer(question.id, event.target.value)}
+                  disabled={isSkipped}
+                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {isSkipped ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onRevise(question.id)}
+                    >
+                      <Pencil />
+                      Revise
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onSkip(question.id)}
+                    >
+                      <SkipForward />
+                      Skip
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })
         ) : (
           <p className={cn("text-sm", styles.subtle)}>Questions appear after generation.</p>
         )}
       </div>
+      {assumptions.length ? (
+        <div className={cn("mt-3 rounded-md border p-3 text-xs leading-5", styles.border, styles.soft)}>
+          <div className="mb-1 font-medium">Assumptions</div>
+          {assumptions.map((assumption) => (
+            <div key={assumption}>- {assumption}</div>
+          ))}
+        </div>
+      ) : null}
       {questions.length ? (
         <Button className="mt-3" type="button" variant="outline" onClick={onUpdate} disabled={loading}>
           <RefreshCw />
-          Update prompt
+          {needsClarification ? "Continue" : "Update prompt"}
         </Button>
       ) : null}
     </div>
@@ -561,6 +772,7 @@ function QuestionsPanel({
 
 function RecommendedPrompt({
   prompt,
+  recommendedPromptId,
   styles,
   onCopy,
   onRun,
@@ -568,6 +780,7 @@ function RecommendedPrompt({
   loading,
 }: {
   prompt?: PromptVariant;
+  recommendedPromptId: string | null;
   styles: (typeof themeStyles)[ThemeName];
   onCopy: () => void;
   onRun: () => void;
@@ -578,7 +791,9 @@ function RecommendedPrompt({
     <div className={cardClass(styles)}>
       <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-sm font-semibold">Recommended Prompt</h2>
+          <h2 className="text-sm font-semibold">
+            {prompt?.id === recommendedPromptId ? "Recommended Prompt" : "Selected Prompt"}
+          </h2>
           <p className={cn("text-xs", styles.subtle)}>
             {prompt?.score_total ? `${Math.round(prompt.score_total * 100)} score` : "Ready after generation"}
           </p>
@@ -603,10 +818,17 @@ function RecommendedPrompt({
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <FileText className={cn("size-4", styles.primaryText)} />
             <span className="font-medium">{prompt.title}</span>
-            <span className="rounded-md bg-emerald-100 px-2 py-1 text-xs text-emerald-800">
-              Recommended
-            </span>
+            {prompt.id === recommendedPromptId ? (
+              <span className="rounded-md bg-emerald-100 px-2 py-1 text-xs text-emerald-800">
+                Recommended
+              </span>
+            ) : null}
           </div>
+          {prompt.explanation ? (
+            <p className={cn("mb-3 rounded-md bg-white/60 px-3 py-2 text-xs leading-5", styles.subtle)}>
+              {prompt.explanation}
+            </p>
+          ) : null}
           <pre className="whitespace-pre-wrap break-words text-sm leading-7">
             {prompt.prompt_text}
           </pre>
@@ -668,22 +890,104 @@ function PreferencesPanel({
         <Settings2 className={cn("size-4", styles.primaryText)} />
         <h2 className="text-sm font-semibold">Preferences</h2>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {(Object.keys(settingOptions) as (keyof PromptSettings)[]).map((key) => (
-          <label className="space-y-1 text-xs font-medium" key={key}>
-            <span>{labelize(key)}</span>
-            <select
-              className={cn("h-9 w-full rounded-md border px-2 text-sm outline-none focus:ring-4", styles.input)}
-              value={settings[key]}
-              onChange={(event) => onChange({ ...settings, [key]: event.target.value })}
-            >
-              {settingOptions[key].map((option) => (
-                <option key={option} value={option}>
-                  {labelize(option)}
-                </option>
+      <div className="space-y-4">
+        {settingGroups.map((group) => (
+          <div className={cn("rounded-md border p-3", styles.border)} key={group.title}>
+            <div className="mb-2 text-xs font-semibold uppercase tracking-normal">
+              {group.title}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {group.keys.map((key) => (
+                <label className="space-y-1 text-xs font-medium" key={key}>
+                  <span>{labelize(key)}</span>
+                  <select
+                    className={cn("h-9 w-full rounded-md border px-2 text-sm outline-none focus:ring-4", styles.input)}
+                    value={settings[key]}
+                    onChange={(event) =>
+                      onChange({
+                        ...settings,
+                        [key]: event.target.value as PromptSettings[typeof key],
+                      })
+                    }
+                  >
+                    {settingOptions[key].map((option) => (
+                      <option key={option} value={option}>
+                        {optionLabel(option)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ModeToggle({
+  mode,
+  onChange,
+  styles,
+}: {
+  mode: RefinementMode;
+  onChange: (mode: RefinementMode) => void;
+  styles: (typeof themeStyles)[ThemeName];
+}) {
+  return (
+    <div className={cn("flex rounded-md border p-1", styles.border, styles.soft)}>
+      <button
+        type="button"
+        className={modeButtonClass(mode === "refinement", styles)}
+        onClick={() => onChange("refinement")}
+        title="Refinement mode"
+      >
+        <ListChecks className="size-4" />
+        Refine
+      </button>
+      <button
+        type="button"
+        className={modeButtonClass(mode === "quick", styles)}
+        onClick={() => onChange("quick")}
+        title="Quick generation mode"
+      >
+        <Zap className="size-4" />
+        Quick
+      </button>
+    </div>
+  );
+}
+
+function RevisionHistory({
+  revisions,
+  styles,
+}: {
+  revisions: PromptRevision[];
+  styles: (typeof themeStyles)[ThemeName];
+}) {
+  return (
+    <div className={cardClass(styles)}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <span className="flex items-center gap-2 text-sm font-semibold">
+          <History className={cn("size-4", styles.primaryText)} />
+          Revisions
+        </span>
+        <span className={cn("text-xs", styles.subtle)}>{revisions.length} stored</span>
+      </div>
+      <div className="space-y-2">
+        {revisions.slice(0, 4).map((revision) => (
+          <div className={cn("rounded-md border p-3", styles.border)} key={revision.id}>
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-medium">{labelize(revision.revision_type)}</span>
+              <span className={cn("text-xs", styles.subtle)}>
+                {new Date(revision.created_at).toLocaleString()}
+              </span>
+            </div>
+            {revision.rationale ? (
+              <p className={cn("text-xs leading-5", styles.subtle)}>{revision.rationale}</p>
+            ) : null}
+          </div>
         ))}
       </div>
     </div>
@@ -723,6 +1027,49 @@ function cardClass(styles: (typeof themeStyles)[ThemeName]) {
 
 function navClass(styles: (typeof themeStyles)[ThemeName]) {
   return cn("rounded-md px-2 py-1 hover:opacity-80", styles.soft);
+}
+
+function modeButtonClass(active: boolean, styles: (typeof themeStyles)[ThemeName]) {
+  return cn(
+    "flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium",
+    active ? cn(styles.primary, "text-white") : "hover:bg-white/60",
+  );
+}
+
+function questionStateClass(state: ClarifyingQuestionState) {
+  return cn(
+    "rounded-md px-2 py-1 text-xs font-medium",
+    state === "answered"
+      ? "bg-emerald-100 text-emerald-800"
+      : state === "skipped"
+        ? "bg-amber-100 text-amber-800"
+        : "bg-slate-100 text-slate-700",
+  );
+}
+
+function mergePromptSettings(
+  current: PromptSettings,
+  preference: Partial<PromptSettings>,
+) {
+  const merged = { ...current };
+  for (const key of Object.keys(settingOptions) as SettingKey[]) {
+    const value = preference[key];
+    if (value && (settingOptions[key] as readonly string[]).includes(value)) {
+      Object.assign(merged, { [key]: value });
+    }
+  }
+  return merged;
+}
+
+function optionLabel(value: string) {
+  const labels: Record<string, string> = {
+    chatgpt: "ChatGPT",
+    codex: "Codex",
+    claude: "Claude",
+    gemini: "Gemini",
+    cursor: "Cursor",
+  };
+  return labels[value] ?? labelize(value);
 }
 
 function labelize(value: string) {

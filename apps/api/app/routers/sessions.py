@@ -186,7 +186,8 @@ def run_session_pipeline(
     session = _get_session_or_404(session_id)
     settings = payload.settings if payload and payload.settings else _settings_from_session(session)
     answers = payload.answers if payload else []
-    return run_prompt_engine(session, settings=settings, answers=answers)
+    mode = payload.mode if payload else "refinement"
+    return run_prompt_engine(session, settings=settings, answers=answers, mode=mode)
 
 
 @router.post("/{session_id}/run-prompt", response_model=RunPromptResponse)

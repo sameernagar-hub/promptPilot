@@ -8,10 +8,14 @@ from app.models import (
     Base,
     ClarifyingQuestion,
     DomainConfirmation,
+    PlatformPreference,
     ProblemSession,
+    PromptRevision,
     PromptScore,
     PromptVariant,
     SavedPrompt,
+    UserPromptProfile,
+    utc_now,
 )
 
 
@@ -32,6 +36,20 @@ def init_database() -> None:
     with engine.begin() as connection:
         connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         Base.metadata.create_all(bind=connection)
+        connection.execute(
+            text(
+                "ALTER TABLE clarifying_questions "
+                "ADD COLUMN IF NOT EXISTS answer_state VARCHAR(40) "
+                "DEFAULT 'unanswered' NOT NULL"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE clarifying_questions "
+                "ADD COLUMN IF NOT EXISTS revision_count INTEGER "
+                "DEFAULT 0 NOT NULL"
+            )
+        )
 
 
 def _session_load_options():
@@ -88,6 +106,14 @@ class DatabaseStore:
     ) -> ProblemSession:
         with SessionLocal() as database:
             db_session = _get_session_for_update(database, session.id)
+            previous_answers = {
+                question.question_key: {
+                    "answer": question.answer,
+                    "answer_state": question.answer_state,
+                    "revision_count": question.revision_count,
+                }
+                for question in db_session.question_rows
+            }
             database.execute(
                 delete(ClarifyingQuestion).where(
                     ClarifyingQuestion.session_id == db_session.id
@@ -95,12 +121,16 @@ class DatabaseStore:
             )
             database.flush()
             for position, question in enumerate(questions):
+                previous = previous_answers.get(question.id, {})
                 db_session.question_rows.append(
                     ClarifyingQuestion(
                         question_key=question.id,
                         question=question.question,
                         reason=question.reason,
                         required=question.required,
+                        answer=previous.get("answer"),
+                        answer_state=previous.get("answer_state") or "unanswered",
+                        revision_count=previous.get("revision_count") or 0,
                         position=position,
                     )
                 )
@@ -130,7 +160,20 @@ class DatabaseStore:
                     next_position += 1
                     db_session.question_rows.append(question)
                     existing[answer.question_id] = question
-                question.answer = answer.answer
+                next_state = answer.state or ("answered" if answer.answer else "unanswered")
+                next_answer = answer.answer.strip() if answer.answer else None
+                if next_state == "skipped":
+                    next_answer = None
+                elif next_state == "answered" and not next_answer:
+                    next_state = "unanswered"
+                changed = (
+                    question.answer_state != next_state
+                    or (question.answer or None) != next_answer
+                )
+                if changed and question.answer_state != "unanswered":
+                    question.revision_count += 1
+                question.answer_state = next_state
+                question.answer = next_answer
             db_session.touch("answers_recorded")
             database.commit()
         return self.get_session(session.id) or session
@@ -201,6 +244,53 @@ class DatabaseStore:
             database.refresh(saved_prompt)
             return saved_prompt
 
+    def record_prompt_revision(self, revision: PromptRevision) -> PromptRevision:
+        with SessionLocal() as database:
+            database.add(revision)
+            database.commit()
+            database.refresh(revision)
+            return revision
+
+    def list_prompt_revisions(self, session_id: str) -> list[PromptRevision]:
+        with SessionLocal() as database:
+            statement = (
+                select(PromptRevision)
+                .where(PromptRevision.session_id == session_id)
+                .order_by(PromptRevision.created_at.desc())
+            )
+            return list(database.scalars(statement))
+
+    def upsert_platform_preference(
+        self,
+        platform: str,
+        preference: dict,
+        confidence: float = 0.75,
+    ) -> PlatformPreference:
+        with SessionLocal() as database:
+            profile = _ensure_local_profile(database)
+            statement = (
+                select(PlatformPreference)
+                .where(
+                    PlatformPreference.profile_id == profile.id,
+                    PlatformPreference.platform == platform,
+                )
+                .order_by(PlatformPreference.updated_at.desc())
+            )
+            platform_preference = database.scalar(statement)
+            if platform_preference is None:
+                platform_preference = PlatformPreference(
+                    profile_id=profile.id,
+                    platform=platform,
+                )
+                database.add(platform_preference)
+            platform_preference.preference = preference
+            platform_preference.confidence = confidence
+            platform_preference.updated_at = utc_now()
+            profile.updated_at = utc_now()
+            database.commit()
+            database.refresh(platform_preference)
+            return platform_preference
+
     def list_saved_prompts(self) -> list[SavedPrompt]:
         with SessionLocal() as database:
             statement = select(SavedPrompt).order_by(SavedPrompt.created_at.desc())
@@ -256,6 +346,16 @@ def _copy_session_scalars(target: ProblemSession, source: ProblemSession) -> Non
     target.classification = source.classification
     target.user_settings = source.user_settings
     target.status = source.status
+
+
+def _ensure_local_profile(database: Session) -> UserPromptProfile:
+    statement = select(UserPromptProfile).where(UserPromptProfile.profile_key == "local")
+    profile = database.scalar(statement)
+    if profile is None:
+        profile = UserPromptProfile(profile_key="local", display_name="Local profile")
+        database.add(profile)
+        database.flush()
+    return profile
 
 
 store = DatabaseStore()

@@ -233,7 +233,7 @@ class ProblemSession(Base):
         return {
             question.question_key: question.answer
             for question in self.question_rows
-            if question.answer
+            if question.answer and question.answer_state == "answered"
         }
 
     @property
@@ -264,6 +264,8 @@ class ClarifyingQuestion(Base):
     reason: Mapped[str] = mapped_column(Text)
     required: Mapped[bool] = mapped_column(Boolean, default=True)
     answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    answer_state: Mapped[str] = mapped_column(String(40), default="unanswered")
+    revision_count: Mapped[int] = mapped_column(Integer, default=0)
     position: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
@@ -280,6 +282,9 @@ class ClarifyingQuestion(Base):
             "question": self.question,
             "reason": self.reason,
             "required": self.required,
+            "answer": self.answer,
+            "state": self.answer_state,
+            "revision_count": self.revision_count,
         }
 
 

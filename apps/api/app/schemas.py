@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 PromptLength = Literal["short", "medium", "deep"]
@@ -10,6 +10,15 @@ Tone = Literal["direct", "friendly", "technical"]
 PromptFormat = Literal["checklist", "guide", "table", "conversation", "plan"]
 RiskPreference = Literal["safe_only", "normal", "advanced"]
 SourcePreference = Literal["none", "web", "official_docs"]
+RefinementMode = Literal["refinement", "quick"]
+ClarifyingQuestionState = Literal["unanswered", "answered", "skipped"]
+TargetPlatform = Literal["codex", "claude", "chatgpt", "gemini", "cursor", "generic"]
+DetailLevel = Literal["concise", "balanced", "exhaustive"]
+Formality = Literal["casual", "neutral", "formal"]
+TemperaturePreference = Literal["precise", "balanced", "creative"]
+ReasoningStyle = Literal["direct_answer", "step_by_step", "ask_first", "explore_options"]
+SourceStrictness = Literal["none", "cite_when_needed", "official_only", "evidence_first"]
+InteractionMode = Literal["one_shot", "iterative", "agentic"]
 ImportPlatform = Literal[
     "manual",
     "codex",
@@ -30,6 +39,13 @@ class PromptSettings(BaseModel):
     format: PromptFormat = "guide"
     risk: RiskPreference = "normal"
     sources: SourcePreference = "none"
+    target_platform: TargetPlatform = "generic"
+    detail_level: DetailLevel = "balanced"
+    formality: Formality = "neutral"
+    temperature: TemperaturePreference = "balanced"
+    reasoning_style: ReasoningStyle = "ask_first"
+    source_strictness: SourceStrictness = "none"
+    interaction_mode: InteractionMode = "iterative"
 
 
 class CreateSessionRequest(BaseModel):
@@ -67,6 +83,9 @@ class ClarifyingQuestion(BaseModel):
     question: str
     reason: str
     required: bool = True
+    answer: str | None = None
+    state: ClarifyingQuestionState = "unanswered"
+    revision_count: int = 0
 
 
 class ClarifyingQuestionsResponse(BaseModel):
@@ -76,7 +95,20 @@ class ClarifyingQuestionsResponse(BaseModel):
 
 class AnswerItem(BaseModel):
     question_id: str
-    answer: str = Field(..., min_length=1)
+    answer: str | None = Field(default=None, max_length=5000)
+    state: ClarifyingQuestionState | None = None
+
+    @model_validator(mode="after")
+    def normalize_state(self) -> "AnswerItem":
+        if self.answer is not None:
+            self.answer = self.answer.strip()
+        if self.state is None:
+            self.state = "answered" if self.answer else "unanswered"
+        if self.state == "answered" and not self.answer:
+            raise ValueError("Answered questions require answer text")
+        if self.state == "skipped":
+            self.answer = None
+        return self
 
 
 class SubmitAnswersRequest(BaseModel):
@@ -111,15 +143,33 @@ class ScorePromptsResponse(BaseModel):
 class PromptEngineRunRequest(BaseModel):
     settings: PromptSettings | None = None
     answers: list[AnswerItem] = Field(default_factory=list)
+    mode: RefinementMode = "refinement"
+
+
+class PromptRevisionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    session_id: str | None
+    prompt_variant_id: str | None
+    revision_type: str
+    before_text: str | None = None
+    after_text: str
+    rationale: str | None = None
+    revision_metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
 
 
 class PromptEngineRunResponse(BaseModel):
     session_id: str
+    mode: RefinementMode
     classification: ClassificationResponse
     needs_clarification: bool
     questions: list[ClarifyingQuestion]
     prompts: list[PromptVariantResponse]
     recommended_prompt_id: str | None
+    assumptions: list[str] = Field(default_factory=list)
+    revisions: list[PromptRevisionResponse] = Field(default_factory=list)
     timeline: list[str]
 
 
@@ -201,6 +251,17 @@ class TraitObservationResponse(BaseModel):
     updated_at: datetime
 
 
+class PlatformPreferenceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    platform: str
+    preference: dict[str, Any] = Field(default_factory=dict)
+    confidence: float
+    created_at: datetime
+    updated_at: datetime
+
+
 class PromptProfileResponse(BaseModel):
     id: str
     profile_key: str
@@ -212,6 +273,7 @@ class PromptProfileResponse(BaseModel):
     observation_count: int
     last_refreshed_at: datetime | None = None
     traits: list[TraitObservationResponse] = Field(default_factory=list)
+    platform_preferences: list[PlatformPreferenceResponse] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 

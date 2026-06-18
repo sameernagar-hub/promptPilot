@@ -1,6 +1,6 @@
 # Current Status
 
-PromptPilot has completed Phase 10 open domain detection and confirmation. The roadmap has pivoted from prompt-library expansion to a prompting profile and user-experience intelligence direction.
+PromptPilot has completed Phase 12 advanced controls and target platform output. The roadmap has pivoted from prompt-library expansion to a prompting profile and user-experience intelligence direction.
 
 ## Verified Workspace State
 
@@ -23,6 +23,14 @@ PromptPilot has completed Phase 10 open domain detection and confirmation. The r
 - Open-domain classification returns subdomain, evidence, alternatives, and confirmation state.
 - Domain confirmation and correction are stored and reused by prompt generation.
 - The workspace now leads with one full recommended prompt, hides advanced preferences by default, includes themes, and keeps alternatives secondary.
+- Refinement mode asks clarifying questions before recommending prompts.
+- Clarifying questions support answered, skipped, and revised states.
+- Skipped required context becomes explicit prompt assumptions.
+- Prompt revisions are stored and surfaced in the workspace.
+- Target platform, interaction mode, reasoning style, detail level, formality, temperature, and source strictness controls are available in the workspace.
+- Prompt output is shaped for Codex, Claude, ChatGPT, Gemini, Cursor, and generic assistants.
+- Platform preferences persist to the local prompting profile and seed fresh workspace sessions.
+- Prompt scoring includes platform fit.
 - Phase 4 database tables exist in local Postgres.
 - Shared package exists at `packages/shared`.
 - Phase 2 Docker Compose infrastructure exists at `infra/docker-compose.yml`.
@@ -50,7 +58,7 @@ PromptPilot has completed Phase 10 open domain detection and confirmation. The r
 
 ## Recommended Next Decision
 
-Start Phase 11: Clarification-First Prompt Refinement.
+Start Phase 13: Profile Q&A and UX Dashboard.
 
 ## Verified Local Startup URLs
 
@@ -179,3 +187,35 @@ Start Phase 11: Clarification-First Prompt Refinement.
 - `pnpm.cmd --dir apps/web lint` passes.
 - `pnpm.cmd --dir apps/web build` passes.
 - In-app Browser was unavailable; Microsoft Edge Playwright fallback verified the guided workflow and import upload button.
+
+## Phase 11 Verification State
+
+- `POST /sessions/{session_id}/run-pipeline` accepts `mode: "refinement" | "quick"`.
+- Refinement mode defers prompt generation while domain confirmation or required clarifying context is still open.
+- Clarifying question rows store `answer_state` and `revision_count`.
+- Question generation uses detected domain, risk, missing request context, and available profile traits.
+- Prompt generation includes domain, constraints, assumptions, and success criteria in the recommended prompt contract.
+- Skipped/unanswered required context is carried as assumptions and lowers scoring specificity.
+- Prompt revisions are stored in `prompt_revisions` with settings, classification, answer/skip IDs, assumptions, and profile trait metadata.
+- Recommendation explanations mention settings, clarifying answers/skips, assumptions, and profile traits.
+- The workspace has a Refine/Quick mode toggle, answer/skip/revise controls, assumptions, explanation text, and revision history.
+- `uv --directory apps/api run python -m compileall app` passes.
+- `pnpm.cmd --dir apps/web lint` passes.
+- `pnpm.cmd --dir apps/web build` passes.
+- HTTP smoke against running API/Postgres passed:
+  - first refinement pass returned `needs_clarification = true`, 3 questions, and 0 prompts
+  - answered/skipped rerun returned `needs_clarification = false`, 3 prompts, 2 assumptions, and 1 stored revision
+
+## Phase 12 Verification State
+
+- `PromptSettings` includes target platform, detail level, formality, temperature preference, reasoning style, source strictness, and interaction mode.
+- `run-pipeline` persists platform preference snapshots to `platform_preferences` for the local profile.
+- `GET /profile` returns platform preferences for workspace defaults.
+- Prompt generation emits platform-shaped recommended prompts for Codex, Claude, ChatGPT, Gemini, Cursor, and generic assistants.
+- Prompt scoring includes `platform_fit`.
+- The workspace preferences panel groups expanded controls into Platform, Output, and Legacy Fit sections.
+- `uv --directory apps/api run python -m compileall app` passes.
+- `pnpm.cmd --dir apps/web lint` passes.
+- `pnpm.cmd --dir apps/web build` passes.
+- HTTP smoke against running API/Postgres verified platform-specific output, profile persistence, and `platform_fit`.
+- In-app Browser was unavailable; headless Chrome fallback verified the expanded preferences UI and profile-seeded defaults.

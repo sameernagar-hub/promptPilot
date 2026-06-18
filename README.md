@@ -79,9 +79,9 @@ AI and evaluation:
 
 ## Current Status
 
-Current project status: Phase 10 open domain detection and confirmation is complete. The local environment, monorepo scaffold, local Postgres/pgvector service, FastAPI workflow, SQLAlchemy persistence, guided Next.js workspace, profile dashboard, trait signal detector, chat import foundation, and domain confirmation flow are ready.
+Current project status: Phase 12 advanced controls and target platform output is complete. The local environment, monorepo scaffold, local Postgres/pgvector service, FastAPI workflow, SQLAlchemy persistence, guided Next.js workspace, profile dashboard, trait signal detector, chat import foundation, domain confirmation flow, refinement-first prompt workflow, and platform-aware prompt controls are ready.
 
-Roadmap status: the plan has pivoted from a prompt knowledge base first to a user-experience-led prompting profile system. Phase 11 is next: Clarification-First Prompt Refinement.
+Roadmap status: the plan has pivoted from a prompt knowledge base first to a user-experience-led prompting profile system. Phase 13 is next: Profile Q&A and UX Dashboard.
 
 Completed so far:
 
@@ -125,11 +125,19 @@ Completed so far:
 - `POST /sessions/{session_id}/domain-confirmation` stores user-confirmed or user-corrected domains.
 - Prompt generation uses confirmed domains and now leads with one readable recommended prompt before alternatives.
 - The workspace now hides advanced preferences by default, shows a full recommended prompt, supports domain confirmation, and includes three theme options.
+- Phase 11 adds an explicit Refine mode that asks critical questions before recommending a prompt.
+- Clarifying questions now support answered, skipped, and revised states.
+- Skipped or missing required context becomes explicit prompt assumptions.
+- Generated recommended prompts include the detailed contract: role, task, context, domain, constraints, audience, tone, formality, detail level, creativity guidance, output format, success criteria, assumptions, follow-up behavior, and safety/source boundaries.
+- Prompt revisions are stored and surfaced in the workspace.
+- Recommendation explanations mention settings, answers/skips, assumptions, and profile traits.
+- Phase 12 adds target platform, interaction mode, reasoning style, detail level, formality, temperature, and source strictness controls.
+- Prompt output now changes for Codex, Claude, ChatGPT, Gemini, Cursor, and generic assistants.
+- Platform preferences persist into the local prompting profile and seed fresh workspace sessions.
+- Prompt scoring includes platform fit.
 
 Not started yet:
 
-- Clarification-first prompt refinement
-- Platform-aware prompt output for Codex, Claude, ChatGPT, Gemini, and other AI systems
 - Profile Q&A and prompting insight dashboard
 
 ## Planning Documents
@@ -144,6 +152,6 @@ Not started yet:
 
 ## Next Step
 
-The next implementation step is Phase 11: Clarification-First Prompt Refinement.
+The next implementation step is Phase 13: Profile Q&A and UX Dashboard.
 
-This phase should make refinement explicitly ask critical questions before recommending the final prompt, carry assumptions when details are skipped, and use the profile/preferences without crowding the main workflow.
+This phase should let users ask grounded questions about their prompting behavior and review platform-specific advice from profile evidence.

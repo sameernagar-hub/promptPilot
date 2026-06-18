@@ -4,7 +4,7 @@ This folder is the project control center for PromptPilot. It tracks what has be
 
 ## Current Rule
 
-Phase 10 open domain detection and confirmation is complete. The roadmap has pivoted toward user prompting profiles and guided refinement. The next implementation phase is Phase 11: Clarification-First Prompt Refinement.
+Phase 12 advanced controls and target platform output is complete. The roadmap has pivoted toward user prompting profiles and guided refinement. The next implementation phase is Phase 13: Profile Q&A and UX Dashboard.
 
 ## Files
 

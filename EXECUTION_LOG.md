@@ -885,8 +885,8 @@ Use this checklist when starting implementation:
 - [x] Add prompting trait detection.
 - [x] Add chat history import and integration foundation.
 - [x] Add open domain detection and confirmation.
-- [ ] Add clarification-first prompt refinement.
-- [ ] Add advanced controls and platform-aware prompt output.
+- [x] Add clarification-first prompt refinement.
+- [x] Add advanced controls and platform-aware prompt output.
 - [ ] Add profile Q&A dashboard.
 - [ ] Add privacy, evaluation, and production readiness.
 - [ ] Add knowledge base, RAG, DSPy, and agent tracks as support systems.
@@ -895,8 +895,8 @@ Use this checklist when starting implementation:
 
 ## Current Status
 
-Status: Phase 10 open domain detection and confirmation complete.
+Status: Phase 12 advanced controls and target platform output complete.
 
 Next recommended step:
 
-Start Phase 11: Clarification-First Prompt Refinement.
+Start Phase 13: Profile Q&A and UX Dashboard.

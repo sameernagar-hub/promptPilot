@@ -101,3 +101,36 @@ Invoke-RestMethod `
 - Confirmed and corrected domains are stored in `domain_confirmations`.
 - The prompt engine preserves confirmed domains across reruns.
 - The recommended prompt uses the confirmed domain and injects answered clarifying details.
+
+Phase 11 clarification-first refinement:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/sessions/{session_id}/run-pipeline `
+  -ContentType 'application/json' `
+  -Body '{"mode":"refinement","settings":{"length":"medium","skill_level":"practical","tone":"friendly","format":"guide","risk":"normal","sources":"none"},"answers":[]}'
+```
+
+- `run-pipeline` supports `mode: "refinement" | "quick"`.
+- Refinement mode returns clarifying questions before generating prompts when required context or domain confirmation is open.
+- Clarifying questions store answered, skipped, and revised state.
+- Skipped required context is carried into prompt assumptions.
+- Prompt revisions are stored in `prompt_revisions`.
+- Prompt explanations reference settings, answers/skips, assumptions, and profile traits.
+
+Phase 12 advanced controls and platform output:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/sessions/{session_id}/run-pipeline `
+  -ContentType 'application/json' `
+  -Body '{"mode":"quick","settings":{"target_platform":"codex","detail_level":"balanced","formality":"neutral","temperature":"precise","reasoning_style":"step_by_step","source_strictness":"official_only","interaction_mode":"agentic","length":"medium","skill_level":"practical","tone":"technical","format":"plan","risk":"normal","sources":"official_docs"}}'
+```
+
+- `PromptSettings` supports target platform, detail level, formality, temperature preference, reasoning style, source strictness, and interaction mode.
+- Prompt output is shaped for Codex, Claude, ChatGPT, Gemini, Cursor, and generic assistants.
+- `run-pipeline` stores the selected platform preference snapshot in `platform_preferences` for the local prompting profile.
+- `GET /profile` returns platform preferences so the frontend can seed fresh workspace settings.
+- Prompt scores include `platform_fit`.

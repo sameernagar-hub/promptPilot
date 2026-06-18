@@ -5,7 +5,17 @@ export type PromptSettings = {
   format: "checklist" | "guide" | "table" | "conversation" | "plan";
   risk: "safe_only" | "normal" | "advanced";
   sources: "none" | "web" | "official_docs";
+  target_platform: "codex" | "claude" | "chatgpt" | "gemini" | "cursor" | "generic";
+  detail_level: "concise" | "balanced" | "exhaustive";
+  formality: "casual" | "neutral" | "formal";
+  temperature: "precise" | "balanced" | "creative";
+  reasoning_style: "direct_answer" | "step_by_step" | "ask_first" | "explore_options";
+  source_strictness: "none" | "cite_when_needed" | "official_only" | "evidence_first";
+  interaction_mode: "one_shot" | "iterative" | "agentic";
 };
+
+export type RefinementMode = "refinement" | "quick";
+export type ClarifyingQuestionState = "unanswered" | "answered" | "skipped";
 
 export type SessionResponse = {
   id: string;
@@ -46,6 +56,9 @@ export type ClarifyingQuestion = {
   question: string;
   reason: string;
   required: boolean;
+  answer: string | null;
+  state: ClarifyingQuestionState;
+  revision_count: number;
 };
 
 export type PromptVariant = {
@@ -63,12 +76,27 @@ export type PromptVariant = {
 
 export type PipelineResponse = {
   session_id: string;
+  mode: RefinementMode;
   classification: ClassificationResponse;
   needs_clarification: boolean;
   questions: ClarifyingQuestion[];
   prompts: PromptVariant[];
   recommended_prompt_id: string | null;
+  assumptions: string[];
+  revisions: PromptRevision[];
   timeline: string[];
+};
+
+export type PromptRevision = {
+  id: string;
+  session_id: string | null;
+  prompt_variant_id: string | null;
+  revision_type: string;
+  before_text: string | null;
+  after_text: string;
+  rationale: string | null;
+  revision_metadata: Record<string, unknown>;
+  created_at: string;
 };
 
 export type RunPromptResponse = {
@@ -161,6 +189,16 @@ export type PromptProfile = {
   observation_count: number;
   last_refreshed_at: string | null;
   traits: TraitObservation[];
+  platform_preferences: PlatformPreference[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type PlatformPreference = {
+  id: string;
+  platform: string;
+  preference: Partial<PromptSettings>;
+  confidence: number;
   created_at: string;
   updated_at: string;
 };
@@ -240,6 +278,13 @@ export const defaultSettings: PromptSettings = {
   format: "guide",
   risk: "normal",
   sources: "none",
+  target_platform: "generic",
+  detail_level: "balanced",
+  formality: "neutral",
+  temperature: "balanced",
+  reasoning_style: "ask_first",
+  source_strictness: "none",
+  interaction_mode: "iterative",
 };
 
 const API_BASE_URL =
@@ -296,14 +341,30 @@ export async function runPipeline(
   sessionId: string,
   settings: PromptSettings,
   answers: Record<string, string>,
+  questionStates: Record<string, ClarifyingQuestionState> = {},
+  mode: RefinementMode = "refinement",
 ) {
+  const questionIds = new Set([
+    ...Object.keys(answers),
+    ...Object.keys(questionStates),
+  ]);
   return request<PipelineResponse>(`/sessions/${sessionId}/run-pipeline`, {
     method: "POST",
     body: JSON.stringify({
       settings,
-      answers: Object.entries(answers)
-        .filter(([, answer]) => answer.trim().length > 0)
-        .map(([question_id, answer]) => ({ question_id, answer })),
+      mode,
+      answers: Array.from(questionIds)
+        .map((question_id) => {
+          const answer = answers[question_id]?.trim() ?? "";
+          const state =
+            questionStates[question_id] ??
+            (answer.length ? "answered" : "unanswered");
+          return {
+            question_id,
+            answer: state === "skipped" ? null : answer,
+            state,
+          };
+        }),
     }),
   });
 }

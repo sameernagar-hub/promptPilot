@@ -1,3 +1,5 @@
+from typing import Any
+
 from app.schemas import ClarifyingQuestion, ClassificationResponse
 
 
@@ -140,8 +142,8 @@ DOMAIN_QUESTIONS = {
 def generate_questions(
     problem: str,
     classification: ClassificationResponse,
+    profile_traits: list[Any] | None = None,
 ) -> list[ClarifyingQuestion]:
-    del problem
     seeds = DOMAIN_QUESTIONS.get(
         classification.domain,
         DOMAIN_QUESTIONS["general_problem_solving"],
@@ -151,6 +153,45 @@ def generate_questions(
         ClarifyingQuestion(id=question_id, question=question, reason=reason)
         for question_id, question, reason in seeds
     ]
+
+    lowered = problem.lower()
+    if _needs_success_criteria(lowered, profile_traits):
+        questions.append(
+            ClarifyingQuestion(
+                id="success_criteria",
+                question="What would make the final answer successful for you?",
+                reason="A clear success condition helps the prompt avoid generic advice.",
+            )
+        )
+
+    if _needs_constraints(lowered, questions, profile_traits):
+        questions.append(
+            ClarifyingQuestion(
+                id="constraints",
+                question="What constraints, requirements, or things to avoid should the AI respect?",
+                reason="Explicit constraints keep the refined prompt grounded in the real situation.",
+            )
+        )
+
+    if _needs_audience(classification.domain, lowered):
+        questions.append(
+            ClarifyingQuestion(
+                id="audience",
+                question="Who is the answer for, and what level of familiarity should it assume?",
+                reason="Audience changes tone, depth, examples, and vocabulary.",
+                required=False,
+            )
+        )
+
+    if _strong_trait(profile_traits, "source_expectation"):
+        questions.append(
+            ClarifyingQuestion(
+                id="source_boundary",
+                question="Should the answer use general knowledge, cite sources when needed, or stick to official sources?",
+                reason="Your profile suggests source expectations may shape answer quality.",
+                required=False,
+            )
+        )
 
     if classification.risk_level in {"medium", "high"}:
         questions.append(
@@ -162,4 +203,88 @@ def generate_questions(
             )
         )
 
-    return questions
+    return _dedupe_questions(questions)
+
+
+def _needs_success_criteria(problem: str, profile_traits: list[Any] | None) -> bool:
+    has_goal = any(
+        term in problem
+        for term in {
+            "so that",
+            "goal",
+            "success",
+            "decide",
+            "choose",
+            "fix",
+            "build",
+            "write",
+            "compare",
+        }
+    )
+    return not has_goal or _weak_trait(profile_traits, "goal_clarity")
+
+
+def _needs_constraints(
+    problem: str,
+    questions: list[ClarifyingQuestion],
+    profile_traits: list[Any] | None,
+) -> bool:
+    if any(question.id == "constraints" for question in questions):
+        return False
+    has_constraints = any(
+        term in problem
+        for term in {"must", "only", "avoid", "without", "budget", "deadline", "using"}
+    )
+    return not has_constraints or _weak_trait(profile_traits, "constraint_specificity")
+
+
+def _needs_audience(domain: str, problem: str) -> bool:
+    if domain not in {
+        "writing_communication",
+        "learning_research",
+        "business_strategy",
+        "creative_media",
+    }:
+        return False
+    return not any(term in problem for term in {"audience", "reader", "client", "team", "student"})
+
+
+def _dedupe_questions(questions: list[ClarifyingQuestion]) -> list[ClarifyingQuestion]:
+    seen: set[str] = set()
+    deduped: list[ClarifyingQuestion] = []
+    for question in questions:
+        if question.id in seen:
+            continue
+        seen.add(question.id)
+        deduped.append(question)
+    return deduped
+
+
+def _weak_trait(profile_traits: list[Any] | None, trait_key: str) -> bool:
+    trait = _find_trait(profile_traits, trait_key)
+    if not trait:
+        return False
+    return _trait_float(trait, "score") < 0.45 and _trait_float(trait, "confidence") >= 0.35
+
+
+def _strong_trait(profile_traits: list[Any] | None, trait_key: str) -> bool:
+    trait = _find_trait(profile_traits, trait_key)
+    if not trait:
+        return False
+    return _trait_float(trait, "score") >= 0.7 and _trait_float(trait, "confidence") >= 0.45
+
+
+def _find_trait(profile_traits: list[Any] | None, trait_key: str) -> Any | None:
+    for trait in profile_traits or []:
+        value = trait.get("trait_key") if isinstance(trait, dict) else getattr(trait, "trait_key", None)
+        if value == trait_key:
+            return trait
+    return None
+
+
+def _trait_float(trait: Any, key: str) -> float:
+    value = trait.get(key) if isinstance(trait, dict) else getattr(trait, key, 0.0)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0

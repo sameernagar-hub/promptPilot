@@ -11,6 +11,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -444,7 +445,7 @@ function Metric({
   label,
   value,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: number | string;
 }) {

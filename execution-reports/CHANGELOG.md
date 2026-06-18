@@ -767,3 +767,61 @@ This changelog records every meaningful command, check, file edit, and project-c
   - Updated `execution-reports/CURRENT_STATUS.md`.
   - Updated `execution-reports/README.md`.
   - Updated `execution-reports/phases/phase-10-open-domain-detection-confirmation.md`.
+
+### Phase 11 Clarification-First Prompt Refinement Execution
+
+- Implemented the Phase 11 refinement backend.
+  - Added explicit `refinement` and `quick` run-pipeline modes.
+  - Deferred prompt generation in refinement mode until domain confirmation and required clarifying context are handled.
+  - Extended clarifying questions with answer state and revision count.
+  - Preserved answer/skip state across regenerated question sets.
+  - Generated clarifying questions from domain, risk, missing context, and available profile traits.
+  - Added assumptions for skipped or unanswered required context.
+  - Stored prompt revisions in `prompt_revisions` with settings, classification, answer/skip IDs, assumptions, and profile trait metadata.
+  - Updated recommendation explanations to mention settings, clarifying answers/skips, assumptions, and profile traits.
+- Implemented the Phase 11 frontend workflow.
+  - Added a Refine/Quick mode toggle.
+  - Added answer, skip, and revise controls for clarifying questions.
+  - Displayed carried assumptions, recommendation explanations, and revision history in the workspace.
+  - Kept alternatives secondary behind the existing toggle.
+- Verification.
+  - `uv --directory apps/api run python -m compileall app` passed.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed.
+  - HTTP smoke against running API/Postgres passed: first refinement pass returned questions and no prompts; answered/skipped rerun generated prompts, assumptions, and a stored revision.
+- Updated documentation and status files.
+  - Updated `README.md`.
+  - Updated `EXECUTION_LOG.md`.
+  - Updated `apps/api/README.md`.
+  - Updated `apps/web/README.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated `execution-reports/phases/phase-11-clarification-first-prompt-refinement.md`.
+
+### Phase 12 Advanced Controls And Target Platform Output Execution
+
+- Implemented the Phase 12 backend controls.
+  - Extended prompt settings with target platform, detail level, formality, temperature preference, reasoning style, source strictness, and interaction mode.
+  - Persisted platform preference snapshots to the local prompting profile during pipeline runs.
+  - Returned platform preferences from `GET /profile`.
+  - Added platform-specific prompt behavior for Codex, Claude, ChatGPT, Gemini, Cursor, and generic assistants.
+  - Added `platform_fit` to prompt scoring and platform-aware recommendation explanations.
+- Implemented the Phase 12 frontend workflow.
+  - Added grouped Platform, Output, and Legacy Fit preference sections.
+  - Added target platform, interaction mode, reasoning style, detail level, formality, temperature, and source strictness controls.
+  - Seeded fresh workspace settings from saved platform preferences when available.
+- Verification.
+  - `uv --directory apps/api run python -m compileall app` passed.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed.
+  - HTTP smoke against running API/Postgres passed for Codex-specific output, stored platform preference, `platform_fit`, and platform-aware explanations.
+  - HTTP comparison smoke verified Codex and ChatGPT prompts produce distinct platform behavior.
+  - In-app Browser was unavailable; headless Chrome fallback verified the expanded preferences UI and profile-seeded defaults.
+- Updated documentation and status files.
+  - Updated `README.md`.
+  - Updated `EXECUTION_LOG.md`.
+  - Updated `apps/api/README.md`.
+  - Updated `apps/web/README.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated `execution-reports/phases/phase-12-advanced-controls-platform-output.md`.

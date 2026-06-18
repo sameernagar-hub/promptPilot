@@ -32,7 +32,7 @@ App routes:
 
 The `/profile` dashboard shows profile metrics, trait cards, evidence level badges, signal counts, representative signals, and evidence links.
 
-The `/` workspace now focuses on a guided flow: request, domain confirmation, clarifying questions, one full recommended prompt, optional alternatives, compact preferences, and theme selection.
+The `/` workspace now focuses on a guided flow: request, Refine/Quick mode selection, domain confirmation, clarifying questions with answer/skip/revise states, one full platform-aware recommended prompt, assumptions, revision history, optional alternatives, grouped preferences, profile-seeded platform defaults, and theme selection.
 
 The `/profile/imports` workflow supports platform/source selection, transcript entry, file upload, import ledger review, redaction status, redacted message preview, reprocess, and delete.
 

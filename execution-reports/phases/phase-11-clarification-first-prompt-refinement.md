@@ -8,7 +8,7 @@ In refinement mode, PromptPilot should ask the user critical clarifying question
 
 ## Status
 
-Not started.
+Complete.
 
 ## Planned Pipeline
 
@@ -45,16 +45,32 @@ safety or source boundaries
 
 ## Planned Work
 
-- Add an explicit refinement mode.
-- Generate clarifying questions from domain, profile traits, and missing context.
-- Support answer, skip, and revise states.
-- Add prompt revision history.
-- Add recommendation explanations that reference settings, answers, and profile traits.
+- [x] Add an explicit refinement mode.
+- [x] Generate clarifying questions from domain, profile traits, and missing context.
+- [x] Support answer, skip, and revise states.
+- [x] Add prompt revision history.
+- [x] Add recommendation explanations that reference settings, answers, and profile traits.
 
 ## Verification
 
-- [ ] Refinement mode asks questions before recommending a prompt.
-- [ ] Users can answer, skip, or revise clarifying questions.
-- [ ] Generated prompts include domain, constraints, assumptions, and success criteria.
-- [ ] Prompt revisions are stored.
-- [ ] Recommendation explanations identify what shaped the prompt.
+- [x] Refinement mode asks questions before recommending a prompt.
+- [x] Users can answer, skip, or revise clarifying questions.
+- [x] Generated prompts include domain, constraints, assumptions, and success criteria.
+- [x] Prompt revisions are stored.
+- [x] Recommendation explanations identify what shaped the prompt.
+
+## Implementation Notes
+
+- `POST /sessions/{session_id}/run-pipeline` now accepts `mode: "refinement" | "quick"`.
+- Refinement mode defers prompt generation while domain confirmation or required clarifying context is still open.
+- Clarifying questions store answer state and revision count.
+- Skipped or unanswered required context is carried into prompt assumptions and lowers specificity/quality scoring.
+- Prompt revisions are stored in `prompt_revisions` with settings, classification, answer/skip IDs, assumptions, and profile trait metadata.
+- The workspace exposes a Refine/Quick mode toggle, per-question skip/revise controls, assumptions, explanation text, and revision history.
+
+## Verified Commands
+
+- `uv --directory apps/api run python -m compileall app`
+- `pnpm.cmd --dir apps/web lint`
+- `pnpm.cmd --dir apps/web build`
+- HTTP smoke against `http://127.0.0.1:8000`: first refinement pass returned questions and zero prompts; answered/skipped rerun generated prompts, assumptions, and a stored revision.

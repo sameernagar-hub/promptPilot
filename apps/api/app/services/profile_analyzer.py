@@ -19,6 +19,7 @@ from app.models import (
     utc_now,
 )
 from app.schemas import (
+    PlatformPreferenceResponse,
     PromptingTraitSignalResponse,
     PromptProfileResponse,
     TraitObservationResponse,
@@ -643,6 +644,7 @@ def _profile_response(database, profile_id: str) -> PromptProfileResponse:
             selectinload(UserPromptProfile.signals).selectinload(
                 PromptingTraitSignal.trait
             ),
+            selectinload(UserPromptProfile.platform_preferences),
         )
         .where(UserPromptProfile.id == profile_id)
     )
@@ -705,6 +707,14 @@ def _profile_response(database, profile_id: str) -> PromptProfileResponse:
         observation_count=profile.observation_count,
         last_refreshed_at=profile.last_refreshed_at,
         traits=traits,
+        platform_preferences=[
+            PlatformPreferenceResponse.model_validate(preference)
+            for preference in sorted(
+                profile.platform_preferences,
+                key=lambda item: (item.confidence, item.updated_at),
+                reverse=True,
+            )
+        ],
         created_at=profile.created_at,
         updated_at=profile.updated_at,
     )

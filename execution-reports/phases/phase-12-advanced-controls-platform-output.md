@@ -8,7 +8,7 @@ This phase expands the current tuner into platform-aware controls while keeping 
 
 ## Status
 
-Not started.
+Complete.
 
 ## New Controls
 
@@ -32,17 +32,35 @@ interaction_mode: one_shot | iterative | agentic
 
 ## Planned Work
 
-- Extend backend prompt settings schemas.
-- Extend frontend tuner controls.
-- Persist platform preferences with sessions and profiles.
-- Add platform-specific prompt generation templates.
-- Add platform-fit scoring.
-- Add settings defaults from the user profile when available.
+- [x] Extend backend prompt settings schemas.
+- [x] Extend frontend tuner controls.
+- [x] Persist platform preferences with sessions and profiles.
+- [x] Add platform-specific prompt generation templates.
+- [x] Add platform-fit scoring.
+- [x] Add settings defaults from the user profile when available.
+
+## Implementation Notes
+
+- `PromptSettings` now includes target platform, detail level, formality, temperature preference, reasoning style, source strictness, and interaction mode.
+- `run-pipeline` stores platform preferences in the active local prompting profile so future workspace sessions can inherit the latest valid preferences.
+- Prompt generation now emits platform-shaped recommended prompts for Codex, Claude, ChatGPT, Gemini, Cursor, and generic assistants.
+- Prompt scoring now includes `platform_fit` and recommendation explanations mention the selected platform and detail level.
+- The workspace preferences panel is grouped into Platform, Output, and Legacy Fit sections to keep the expanded controls scannable.
+- The workspace loads saved platform preferences from `GET /profile` for a fresh local session.
 
 ## Verification
 
-- [ ] Settings persist with sessions.
-- [ ] Platform preferences persist with the profile.
-- [ ] Prompt output changes based on selected platform.
-- [ ] UI exposes advanced controls without becoming cluttered.
-- [ ] Prompt scoring accounts for platform fit.
+- [x] Settings persist with sessions.
+- [x] Platform preferences persist with the profile.
+- [x] Prompt output changes based on selected platform.
+- [x] UI exposes advanced controls without becoming cluttered.
+- [x] Prompt scoring accounts for platform fit.
+
+Verified commands and checks:
+
+- `uv --directory apps/api run python -m compileall app`
+- `pnpm.cmd --dir apps/web lint`
+- `pnpm.cmd --dir apps/web build`
+- HTTP smoke against the running API/Postgres verified Codex-specific prompt text, stored platform preference, `platform_fit`, and platform-aware explanation text.
+- HTTP comparison smoke verified Codex and ChatGPT prompts produce different platform behavior.
+- In-app Browser was unavailable; headless Chrome fallback verified the workspace preferences panel and saved profile defaults.

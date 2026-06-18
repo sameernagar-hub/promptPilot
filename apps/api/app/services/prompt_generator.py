@@ -15,9 +15,16 @@ PROMPT_STRATEGIES = [
 
 def _settings_lines(settings: PromptSettings) -> list[str]:
     return [
+        f"- Target platform: {settings.target_platform}",
+        f"- Detail level: {settings.detail_level}",
         f"- Depth: {settings.length}",
         f"- Skill level: {settings.skill_level}",
         f"- Tone: {settings.tone}",
+        f"- Formality: {settings.formality}",
+        f"- Temperature: {settings.temperature}",
+        f"- Reasoning style: {settings.reasoning_style}",
+        f"- Source strictness: {settings.source_strictness}",
+        f"- Interaction mode: {settings.interaction_mode}",
         f"- Output format: {settings.format}",
         f"- Risk posture: {settings.risk}",
         f"- Source preference: {settings.sources}",
@@ -39,6 +46,30 @@ DOMAIN_ROLES = {
 }
 
 
+PLATFORM_BEHAVIOR = {
+    "codex": (
+        "Optimize for Codex. Emphasize repository context, relevant files, constraints, "
+        "implementation steps, verification commands, and expected code-change behavior."
+    ),
+    "claude": (
+        "Optimize for Claude. Support long-context analysis, careful structure, nuanced tradeoffs, "
+        "and a deliberate answer with clearly labeled assumptions."
+    ),
+    "chatgpt": (
+        "Optimize for ChatGPT. Keep the prompt portable, explicit, general-purpose, and easy to reuse."
+    ),
+    "gemini": (
+        "Optimize for Gemini. Mention multimodal inputs, broad research context, and source comparison when relevant."
+    ),
+    "cursor": (
+        "Optimize for Cursor. Emphasize files, editor context, incremental code edits, tests, and concise implementation notes."
+    ),
+    "generic": (
+        "Optimize for a generic AI assistant. Avoid provider-specific features or assumptions."
+    ),
+}
+
+
 def _context_lines(session: ProblemSession) -> list[str]:
     lines = [f"Problem: {session.raw_input}"]
     if session.detected_domain:
@@ -53,6 +84,18 @@ def _context_lines(session: ProblemSession) -> list[str]:
             f"- {question_id}: {answer}"
             for question_id, answer in sorted(session.answers.items())
         )
+    skipped = [
+        question.question_key
+        for question in session.question_rows
+        if question.answer_state == "skipped"
+    ]
+    if skipped:
+        lines.append("Skipped context:")
+        lines.extend(f"- {question_id}" for question_id in sorted(skipped))
+    lines.append("Assumptions:")
+    lines.extend(_assumption_lines(session))
+    lines.append("Constraints:")
+    lines.extend(_constraint_lines(session))
     return lines
 
 
@@ -77,7 +120,7 @@ def _question_lines(session: ProblemSession) -> list[str]:
     unanswered = [
         question
         for question in session.question_rows
-        if question.required and not question.answer
+        if question.required and question.answer_state == "unanswered"
     ]
     if not unanswered:
         return ["- Ask one short follow-up only if a critical detail is missing."]
@@ -88,12 +131,37 @@ def _question_lines(session: ProblemSession) -> list[str]:
 
 
 def _known_detail_lines(session: ProblemSession) -> list[str]:
-    if not session.answers:
+    answered = [
+        question
+        for question in session.question_rows
+        if question.answer_state == "answered" and question.answer
+    ]
+    if not answered:
         return ["- No extra details provided yet."]
     return [
-        f"- {question_id.replace('_', ' ')}: {answer}"
-        for question_id, answer in sorted(session.answers.items())
+        f"- {question.question_key.replace('_', ' ')}: {question.answer}"
+        for question in sorted(answered, key=lambda item: item.question_key)
     ]
+
+
+def _assumption_lines(session: ProblemSession) -> list[str]:
+    assumptions = [
+        f"- {question.question_key.replace('_', ' ')} was skipped or left unspecified; do not overfit the answer to unstated details."
+        for question in session.question_rows
+        if question.required and question.answer_state in {"skipped", "unanswered"}
+    ]
+    if not assumptions:
+        return ["- No major assumptions beyond the user's stated details."]
+    return assumptions
+
+
+def _constraint_lines(session: ProblemSession) -> list[str]:
+    constraints = []
+    if session.risk_level in {"medium", "high"}:
+        constraints.append("- Treat safety, reversibility, and escalation criteria as hard constraints.")
+    if session.detected_domain:
+        constraints.append(f"- Stay within the {session.detected_domain.replace('_', ' ')} domain unless the user corrects it.")
+    return constraints or ["- Respect any constraints the user provides in the known details."]
 
 
 def _format_instruction(settings: PromptSettings) -> str:
@@ -108,11 +176,84 @@ def _format_instruction(settings: PromptSettings) -> str:
 
 
 def _length_instruction(settings: PromptSettings) -> str:
-    return {
+    detail = {
+        "concise": "Use concise detail: preserve only the highest-value context and instructions.",
+        "balanced": "Use balanced detail: include enough structure to be actionable without becoming heavy.",
+        "exhaustive": "Use exhaustive detail: include edge cases, alternatives, validation criteria, and escalation paths.",
+    }[settings.detail_level]
+    legacy_depth = {
         "short": "Keep the answer compact and focus on the highest-leverage details.",
         "medium": "Give enough detail to be actionable without becoming exhaustive.",
         "deep": "Go deep: include reasoning, alternatives, edge cases, and escalation criteria.",
     }[settings.length]
+    return f"{detail} {legacy_depth}"
+
+
+def _temperature_instruction(session: ProblemSession, settings: PromptSettings) -> str:
+    if settings.temperature == "precise":
+        return "Use low creativity and prioritize precise, verifiable, non-speculative guidance."
+    if settings.temperature == "creative":
+        return "Use creative exploration while clearly separating ideas from confirmed facts."
+    if settings.risk == "safe_only" or session.risk_level in {"medium", "high"}:
+        return "Use low creativity and prioritize accuracy, caution, and verifiable next steps."
+    if session.detected_domain == "creative_media" or settings.risk == "advanced":
+        return "Use balanced creativity: explore options while keeping the answer usable."
+    return "Use balanced creativity and avoid making up missing facts."
+
+
+def _source_boundary(settings: PromptSettings) -> str:
+    if settings.source_strictness == "official_only":
+        return "Use official sources only when source-backed claims are needed; say when verification is required."
+    if settings.source_strictness == "evidence_first":
+        return "Lead with evidence, cite or describe support for important claims, and separate inference from fact."
+    if settings.source_strictness == "cite_when_needed":
+        return "Cite sources for claims that are specific, time-sensitive, factual, legal, medical, financial, or technical."
+    if settings.sources == "official_docs":
+        return "Prefer official sources and say when a claim needs verification."
+    if settings.sources == "web":
+        return "Use sources when useful and separate sourced claims from assumptions."
+    return "Do not invent citations; state uncertainty when facts are missing."
+
+
+def _platform_label(platform: str) -> str:
+    labels = {
+        "codex": "Codex",
+        "claude": "Claude",
+        "chatgpt": "ChatGPT",
+        "gemini": "Gemini",
+        "cursor": "Cursor",
+        "generic": "Generic",
+    }
+    return labels.get(platform, platform.replace("_", " ").title())
+
+
+def _platform_behavior(settings: PromptSettings) -> str:
+    return PLATFORM_BEHAVIOR.get(settings.target_platform, PLATFORM_BEHAVIOR["generic"])
+
+
+def _reasoning_instruction(settings: PromptSettings) -> str:
+    return {
+        "direct_answer": "Reasoning style: give the answer first, then only the rationale needed to support it.",
+        "step_by_step": "Reasoning style: use a step-by-step structure with clear sequencing and checkpoints.",
+        "ask_first": "Reasoning style: ask critical missing questions before finalizing when context would materially change the answer.",
+        "explore_options": "Reasoning style: explore viable options, tradeoffs, and decision criteria before recommending.",
+    }[settings.reasoning_style]
+
+
+def _interaction_instruction(settings: PromptSettings) -> str:
+    return {
+        "one_shot": "Interaction mode: produce the best complete one-shot answer with assumptions clearly stated.",
+        "iterative": "Interaction mode: support a short iterative exchange and ask focused follow-ups only when they matter.",
+        "agentic": "Interaction mode: act like an agent: plan, execute in safe steps, verify outcomes, and report what changed.",
+    }[settings.interaction_mode]
+
+
+def _formality_instruction(settings: PromptSettings) -> str:
+    return {
+        "casual": "Use casual wording while staying clear and respectful.",
+        "neutral": "Use neutral wording that is professional but not stiff.",
+        "formal": "Use formal, polished wording suitable for professional use.",
+    }[settings.formality]
 
 
 def choose_prompt_strategies(
@@ -160,28 +301,57 @@ def _prompt_for_strategy(
     domain = _domain_label(session)
     questions = "\n".join(_question_lines(session))
     known_details = "\n".join(_known_detail_lines(session))
+    assumptions = "\n".join(_assumption_lines(session))
+    constraints = "\n".join(_constraint_lines(session))
+    platform_label = _platform_label(settings.target_platform)
+    platform_behavior = _platform_behavior(settings)
+    reasoning_instruction = _reasoning_instruction(settings)
+    interaction_instruction = _interaction_instruction(settings)
+    formality_instruction = _formality_instruction(settings)
+    recommended_title = (
+        "Recommended Prompt"
+        if settings.target_platform == "generic"
+        else f"{platform_label}-Ready Prompt"
+    )
 
     templates = {
         "recommended_prompt": (
-            "Recommended Prompt",
+            recommended_title,
             (
-                f"You are {role}. Help with this problem using practical, domain-specific judgment.\n\n"
-                f"Problem: {session.raw_input}\n"
+                f"Role: You are {role}.\n"
+                f"Task: Help the user with this request using practical, domain-specific judgment.\n"
+                f"Target platform: {platform_label}.\n"
+                f"Platform behavior: {platform_behavior}\n"
+                f"Context: {session.raw_input}\n"
                 f"Domain: {domain}\n"
                 f"Intent: {(session.detected_intent or 'clarify and solve').replace('_', ' ')}\n"
                 f"Risk level: {session.risk_level or 'low'}\n\n"
-                "Known details from the user:\n"
+                "Known user details:\n"
                 f"{known_details}\n\n"
-                "Before giving the final answer, ask only the questions that would materially change the advice:\n"
+                "Constraints:\n"
+                f"{constraints}\n\n"
+                "Audience: Match the user's stated audience if provided; otherwise assume a capable non-expert.\n"
+                f"Tone: {settings.tone.replace('_', ' ')}.\n"
+                f"Formality: {settings.formality}. {formality_instruction}\n"
+                f"Detail level: {settings.detail_level} for a {settings.skill_level} user.\n"
+                f"Temperature or creativity guidance: {_temperature_instruction(session, settings)}\n"
+                f"{reasoning_instruction}\n"
+                f"{interaction_instruction}\n"
+                f"Output format: {settings.format}. {_format_instruction(settings)}\n"
+                "Success criteria: The answer should be specific, actionable, bounded by the known facts, and clear about what would change the recommendation.\n\n"
+                "Assumptions:\n"
+                f"{assumptions}\n\n"
+                "Follow-up behavior:\n"
                 f"{questions}\n\n"
-                "Then produce the answer with this structure:\n"
-                "1. Most likely diagnosis or interpretation\n"
-                "2. What to check first\n"
-                "3. Step-by-step next actions\n"
-                "4. Stop conditions or safety boundaries\n"
-                "5. What information would improve the answer\n\n"
+                f"Safety or source boundaries: {_source_boundary(settings)}\n\n"
+                "Produce the final answer with this structure:\n"
+                "1. Best current interpretation\n"
+                "2. Recommended next actions\n"
+                "3. Risks, stop conditions, or escalation points\n"
+                "4. Assumptions and missing context\n"
+                "5. A concise follow-up question only if it would materially improve the answer\n\n"
                 f"User preferences:\n{settings_block}\n\n"
-                f"{format_instruction} {length_instruction}"
+                f"{length_instruction}"
             ),
         ),
         "diagnostic": (
@@ -190,6 +360,7 @@ def _prompt_for_strategy(
                 "You are a careful diagnostic assistant. Use the context below to identify likely causes, "
                 "ask only the most useful missing questions, and provide a prioritized next-step plan.\n\n"
                 f"{context}\n\nUser preferences:\n{settings_block}\n\n"
+                f"Target platform behavior:\n{platform_behavior}\n\n"
                 f"{format_instruction} {length_instruction} "
                 "Respond with: likely causes, evidence to collect, safest first actions, and when to escalate."
             ),
@@ -200,6 +371,8 @@ def _prompt_for_strategy(
                 "Turn this messy request into a clear, beginner-friendly prompt for an AI assistant. "
                 "The final answer should be practical, ordered, and easy to follow.\n\n"
                 f"{context}\n\nUser preferences:\n{settings_block}\n\n"
+                f"Assumptions to carry forward:\n{assumptions}\n\n"
+                f"Target platform behavior:\n{platform_behavior}\n\n"
                 f"{format_instruction} {length_instruction} "
                 "Ask for missing context if needed, then produce a checklist-style plan with assumptions called out."
             ),
@@ -210,6 +383,8 @@ def _prompt_for_strategy(
                 "Act as an expert consultant. Analyze the request, identify constraints and risks, "
                 "and produce a high-signal answer that explains tradeoffs and recommended action.\n\n"
                 f"{context}\n\nUser preferences:\n{settings_block}\n\n"
+                f"Assumptions to carry forward:\n{assumptions}\n\n"
+                f"Target platform behavior:\n{platform_behavior}\n\n"
                 f"{format_instruction} {length_instruction} "
                 "Structure the response as: recommendation, rationale, alternatives, risks, and next actions."
             ),
@@ -221,6 +396,7 @@ def _prompt_for_strategy(
                 "should not attempt, and when a qualified professional is needed. Then provide conservative, "
                 "reversible next steps.\n\n"
                 f"{context}\n\nUser preferences:\n{settings_block}\n\n"
+                f"Target platform behavior:\n{platform_behavior}\n\n"
                 f"{format_instruction} {length_instruction} "
                 "Do not give hazardous instructions. Include stop conditions, protective checks, and escalation triggers."
             ),
@@ -231,6 +407,7 @@ def _prompt_for_strategy(
                 "Help the user compare viable options. Identify criteria, tradeoffs, risks, missing evidence, "
                 "and a recommended choice based on the stated constraints.\n\n"
                 f"{context}\n\nUser preferences:\n{settings_block}\n\n"
+                f"Target platform behavior:\n{platform_behavior}\n\n"
                 f"{format_instruction} {length_instruction} "
                 "Use a comparison matrix, then summarize the best option and the condition that would change it."
             ),
@@ -242,6 +419,7 @@ def _prompt_for_strategy(
                 "Ask focused questions, explain why each matters, and then provide a provisional path if the "
                 "user cannot answer yet.\n\n"
                 f"{context}\n\nUser preferences:\n{settings_block}\n\n"
+                f"Target platform behavior:\n{platform_behavior}\n\n"
                 f"{format_instruction} {length_instruction} "
                 "Separate required questions from optional details, then give a cautious preliminary plan."
             ),
