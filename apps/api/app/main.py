@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_database
 from app.routers import health, imports, profile, prompts, sessions
+from app.config import get_settings
 
 
 @asynccontextmanager
@@ -23,10 +24,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=list(get_settings().allowed_origins),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

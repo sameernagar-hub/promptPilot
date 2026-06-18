@@ -6,7 +6,7 @@ Let users ask questions about their prompting behavior and receive grounded, use
 
 ## Status
 
-Not started.
+Complete.
 
 ## Example User Questions
 
@@ -38,16 +38,31 @@ How can I make my research prompts stronger?
 
 ## Planned Work
 
-- Add profile Q&A API.
-- Add profile dashboard UI.
-- Add evidence references to profile answers.
-- Add correction and deletion flows for profile observations.
-- Add empty-state guidance for users with little data.
+- [x] Add profile Q&A API.
+- [x] Add profile dashboard UI.
+- [x] Add evidence references to profile answers.
+- [x] Add correction and deletion flows for profile observations.
+- [x] Add empty-state guidance for users with little data.
+
+## Implementation Notes
+
+- Added `GET /profile/insights` for dashboard guidance sections.
+- Added `POST /profile/questions` for grounded profile Q&A.
+- Added `PATCH /profile/observations/{observation_id}` for user corrections.
+- Added `DELETE /profile/observations/{observation_id}` for hiding observations.
+- Added `profile_observation_overrides` so user corrections and hidden observations survive profile refreshes.
+- Expanded `/profile` into a responsive Q&A and insight dashboard.
+- Added environment-driven API CORS through `ALLOWED_ORIGINS`.
 
 ## Verification
 
-- [ ] Profile Q&A can answer from stored traits.
-- [ ] Answers include evidence references or confidence language.
-- [ ] Empty-state guidance appears before enough data exists.
-- [ ] Users can correct or delete profile observations.
-- [ ] Dashboard layout is verified on mobile and desktop.
+- [x] Profile Q&A can answer from stored traits.
+- [x] Answers include evidence references or confidence language.
+- [x] Empty-state guidance appears before enough data exists.
+- [x] Users can correct or delete profile observations.
+- [x] Dashboard layout is verified on mobile and desktop.
+- [x] `uv --directory apps/api run python -m compileall app` passes.
+- [x] `pnpm.cmd --dir apps/web lint` passes.
+- [x] `pnpm.cmd --dir apps/web build` passes.
+- [x] FastAPI smoke test passed for health, session creation, pipeline, profile refresh, insights, Q&A, correction, and hide flows.
+- [x] Local production Next.js profile page works against the API from `http://127.0.0.1:3001`.

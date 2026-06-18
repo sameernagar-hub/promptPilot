@@ -78,6 +78,10 @@ class UserPromptProfile(Base):
         back_populates="profile",
         cascade="all, delete-orphan",
     )
+    observation_overrides: Mapped[list["ProfileObservationOverride"]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+    )
     integration_connections: Mapped[list["IntegrationConnection"]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
@@ -152,6 +156,34 @@ class TraitObservation(Base):
 
     profile: Mapped[UserPromptProfile] = relationship(back_populates="observations")
     trait: Mapped[PromptingTrait | None] = relationship(back_populates="observations")
+
+
+class ProfileObservationOverride(Base):
+    __tablename__ = "profile_observation_overrides"
+    __table_args__ = (
+        Index(
+            "ix_profile_observation_overrides_profile_trait",
+            "profile_id",
+            "trait_key",
+            unique=True,
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("user_prompt_profiles.id"), index=True)
+    trait_key: Mapped[str] = mapped_column(String(120), index=True)
+    action: Mapped[str] = mapped_column(String(40), default="corrected")
+    corrected_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    corrected_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    profile: Mapped[UserPromptProfile] = relationship(back_populates="observation_overrides")
 
 
 class PromptingTraitSignal(Base):

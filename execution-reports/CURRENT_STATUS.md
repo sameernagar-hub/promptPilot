@@ -1,6 +1,6 @@
 # Current Status
 
-PromptPilot has completed Phase 12 advanced controls and target platform output. The roadmap has pivoted from prompt-library expansion to a prompting profile and user-experience intelligence direction.
+PromptPilot has completed Phase 13 profile Q&A and UX dashboard. The roadmap has pivoted from prompt-library expansion to a prompting profile and user-experience intelligence direction.
 
 ## Verified Workspace State
 
@@ -31,11 +31,18 @@ PromptPilot has completed Phase 12 advanced controls and target platform output.
 - Prompt output is shaped for Codex, Claude, ChatGPT, Gemini, Cursor, and generic assistants.
 - Platform preferences persist to the local prompting profile and seed fresh workspace sessions.
 - Prompt scoring includes platform fit.
+- Profile Q&A endpoints answer grounded questions from stored traits, signals, sessions, imports, and revisions.
+- Profile insights summarize common missing details, preferences, frequent domains, platform advice, and recent revisions.
+- Users can correct or hide profile observations, with overrides preserved across profile refreshes.
+- API CORS is configurable through `ALLOWED_ORIGINS`.
 - Phase 4 database tables exist in local Postgres.
 - Shared package exists at `packages/shared`.
 - Phase 2 Docker Compose infrastructure exists at `infra/docker-compose.yml`.
 - Local Postgres with pgvector is running through Docker Compose.
 - Planning docs exist under `docs/`.
+- Phase 14 now includes session onboarding, name and AI-platform selection, rules acceptance, clean-slate sessions, personalization, and strict guardrails.
+- Phase 15 now covers codebase cleanup, minimal UX polish, README/documentation cleanup, AI-formatted outputs, session continuity checks, and final pre-deploy hardening.
+- A final Vercel production deployment phase now exists as Phase 16.
 - Git repository exists and tracks `origin/main`.
 
 ## Verified Local Tool State
@@ -58,12 +65,15 @@ PromptPilot has completed Phase 12 advanced controls and target platform output.
 
 ## Recommended Next Decision
 
-Start Phase 13: Profile Q&A and UX Dashboard.
+Start Phase 14: Session Onboarding, Evaluation, Privacy, and Production Readiness.
+
+Phase 15 is reserved for cleanup, documentation, minimal UX polish, AI-formatted output review, and pre-deploy hardening. Phase 16 is reserved for installing the Vercel CLI, configuring Vercel projects and production environment variables, and deploying the local Next.js frontend and local FastAPI backend directly to Vercel after Phase 15.
 
 ## Verified Local Startup URLs
 
 - Web: `http://127.0.0.1:3000`
 - API: `http://127.0.0.1:8000`
+- Production web smoke: `http://127.0.0.1:3001`
 
 ## Phase 2 Verification State
 
@@ -219,3 +229,27 @@ Start Phase 13: Profile Q&A and UX Dashboard.
 - `pnpm.cmd --dir apps/web build` passes.
 - HTTP smoke against running API/Postgres verified platform-specific output, profile persistence, and `platform_fit`.
 - In-app Browser was unavailable; headless Chrome fallback verified the expanded preferences UI and profile-seeded defaults.
+
+## Phase 13 Verification State
+
+- `GET /profile/insights` returns dashboard guidance for missing details, preferences, domains, platforms, and revisions.
+- `POST /profile/questions` answers profile questions with confidence and evidence references.
+- `PATCH /profile/observations/{observation_id}` stores user corrections.
+- `DELETE /profile/observations/{observation_id}` hides observations through refresh-safe overrides.
+- `profile_observation_overrides` stores correction and hidden-observation state.
+- `/profile` now includes Q&A, suggested questions, insight sections, trait correction, and hide controls.
+- Mobile header and suggested-question controls wrap cleanly at narrow widths.
+- API CORS supports `ALLOWED_ORIGINS` and includes local dev and local production ports by default.
+- `uv --directory apps/api run python -m compileall app` passes.
+- `pnpm.cmd --dir apps/web lint` passes.
+- `pnpm.cmd --dir apps/web build` passes.
+- FastAPI smoke against running API/Postgres passed:
+  - `GET /health` returned database status `ok`.
+  - `POST /sessions` returned `201`.
+  - `POST /sessions/{id}/run-pipeline` returned `200`.
+  - `POST /profile/refresh` returned `200`.
+  - `GET /profile/insights` returned `200`.
+  - `POST /profile/questions` returned `200` with evidence.
+  - `PATCH /profile/observations/{id}` returned `200`.
+  - `DELETE /profile/observations/{id}` returned `200`.
+- In-app Browser was unavailable; headless Microsoft Edge verified `/profile` in dev mode and production mode on desktop and mobile.

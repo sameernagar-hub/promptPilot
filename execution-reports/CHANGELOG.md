@@ -401,8 +401,6 @@ This changelog records every meaningful command, check, file edit, and project-c
 
 - Read `execution-reports/phases/phase-03-backend-api-skeleton.md`, current status, and existing API scaffold.
   - Result: Phase 3 required FastAPI routers, schemas, rule-based services, and initial endpoint flow.
-- Checked InsForge CLI skill for backend relevance.
-  - Result: not applicable because this phase is local FastAPI work, not a managed InsForge backend.
 - Added backend modules:
   - `apps/api/app/config.py`
   - `apps/api/app/db.py`
@@ -465,8 +463,6 @@ This changelog records every meaningful command, check, file edit, and project-c
 
 - Read `execution-reports/phases/phase-04-database-models.md`, current status, and Phase 3 backend modules.
   - Result: Phase 4 required database models for sessions, prompts, scores, saved prompts, prompt sources, embeddings, users, and domain packs.
-- Checked InsForge CLI skill for backend relevance.
-  - Result: not applicable because this phase uses local FastAPI, SQLAlchemy, and local Docker Postgres rather than a managed InsForge backend.
 - Replaced the Phase 3 in-memory persistence layer.
   - Updated `apps/api/app/models.py` with SQLAlchemy ORM models.
   - Updated `apps/api/app/db.py` with engine/session/bootstrap logic and a database-backed store.
@@ -517,8 +513,6 @@ This changelog records every meaningful command, check, file edit, and project-c
 
 - Read `execution-reports/phases/phase-05-prompt-engine-v1.md`, current status, and current backend services/routes.
   - Result: Phase 5 required the first complete prompt pipeline.
-- Checked InsForge CLI skill for backend relevance.
-  - Result: not applicable because this phase uses local FastAPI, SQLAlchemy, and local Docker Postgres rather than a managed InsForge backend.
 - Added prompt-engine orchestration.
   - Added `apps/api/app/services/prompt_engine.py`.
   - Added `PromptEngineRunRequest` and `PromptEngineRunResponse`.
@@ -825,3 +819,56 @@ This changelog records every meaningful command, check, file edit, and project-c
   - Updated `execution-reports/CURRENT_STATUS.md`.
   - Updated `execution-reports/README.md`.
   - Updated `execution-reports/phases/phase-12-advanced-controls-platform-output.md`.
+
+### Phase 16 Vercel Production Deployment Planning
+
+- Added a final roadmap phase after Phase 15 for taking PromptPilot live on Vercel.
+- Documented Vercel CLI installation, project linking, environment variables, public API/web deployment, hosted Postgres requirements, CORS setup, responsive production verification, and rollback notes.
+- Added `execution-reports/phases/phase-16-vercel-production-deployment.md`.
+- Updated `EXECUTION_LOG.md`, `README.md`, `execution-reports/CURRENT_STATUS.md`, and `execution-reports/README.md`.
+
+### Phase 13 Profile Q&A And UX Dashboard Execution
+
+- Implemented the Phase 13 backend.
+  - Added `profile_observation_overrides` for refresh-safe observation corrections and hidden observations.
+  - Added profile insight and Q&A response schemas.
+  - Added `GET /profile/insights`, `POST /profile/questions`, `PATCH /profile/observations/{observation_id}`, and `DELETE /profile/observations/{observation_id}`.
+  - Added deterministic profile answers grounded in traits, signals, sessions, imports, platform preferences, and prompt revisions.
+  - Made API CORS configurable through `ALLOWED_ORIGINS`.
+- Implemented the Phase 13 frontend workflow.
+  - Expanded `/profile` into a responsive Q&A and insight dashboard.
+  - Added suggested questions, answer evidence, missing-detail insights, preference summaries, frequent domains, platform advice, and recent revisions.
+  - Added trait correction and hide controls.
+  - Fixed narrow mobile nav and long suggested-question wrapping.
+- Verification.
+  - `uv --directory apps/api run python -m compileall app` passed.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed.
+  - FastAPI smoke passed for health, session creation, pipeline, profile refresh, insights, Q&A, correction, and hide flows.
+  - `GET /health` returned database status `ok` from the running API.
+  - `GET /profile` returned `200` from Next.js dev and local production servers.
+  - In-app Browser was unavailable; headless Microsoft Edge verified desktop and mobile rendering for `/profile`.
+- Updated documentation and status files.
+  - Updated `README.md`.
+  - Updated `EXECUTION_LOG.md`.
+  - Updated `apps/api/README.md`.
+  - Updated `apps/web/README.md`.
+  - Updated `execution-reports/CURRENT_STATUS.md`.
+  - Updated `execution-reports/README.md`.
+  - Updated `execution-reports/phases/phase-13-profile-qa-dashboard.md`.
+
+### Phase 14 And Phase 15 Roadmap Expansion
+
+- Expanded Phase 14 into Session Onboarding, Evaluation, Privacy, and Production Readiness.
+  - Added required session start with display name, primary AI platform, and rules acceptance.
+  - Added AI platform options for ChatGPT, Claude, Grok, Perplexity, Gemini, Copilot, Cursor, Codex, and Other.
+  - Added clean-slate session behavior, Start New Session and End Session controls, personalization, app shell stability, logo-to-home navigation, readable scores, AI-formatted outputs, and strict guardrails.
+- Expanded Phase 15 into Codebase Cleanup, Minimal UX, Knowledge Support, and Pre-Deploy Polish.
+  - Added codebase cleanup, README and documentation cleanup, minimal responsive UX review, session persistence verification, AI-first output polish, and final checks before Vercel deployment.
+- Updated `EXECUTION_LOG.md`, `README.md`, `execution-reports/README.md`, `execution-reports/CURRENT_STATUS.md`, `execution-reports/phases/phase-14-evaluation-privacy-production-readiness.md`, `execution-reports/phases/phase-15-knowledge-rag-dspy-agent-tracks.md`, and `execution-reports/phases/phase-16-vercel-production-deployment.md`.
+
+### Direct Vercel Deployment Cleanup
+
+- Removed stale managed-backend check notes from the changelog.
+- Verified the repository has no managed-backend platform config, package reference, environment variable reference, or local project folder.
+- Clarified that Phase 16 deploys the local Next.js frontend and local FastAPI backend directly to Vercel from this repository.

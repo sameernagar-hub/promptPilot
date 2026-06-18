@@ -30,7 +30,7 @@ App routes:
 - `/profile/imports`: chat import review workflow
 - `/settings`: model and runtime settings
 
-The `/profile` dashboard shows profile metrics, trait cards, evidence level badges, signal counts, representative signals, and evidence links.
+The `/profile` dashboard shows profile metrics, profile Q&A, suggested questions, missing-detail insights, preferences, frequent domains, platform advice, recent revisions, trait cards, evidence level badges, signal counts, representative signals, evidence links, correction controls, and hide controls.
 
 The `/` workspace now focuses on a guided flow: request, Refine/Quick mode selection, domain confirmation, clarifying questions with answer/skip/revise states, one full platform-aware recommended prompt, assumptions, revision history, optional alternatives, grouped preferences, profile-seeded platform defaults, and theme selection.
 
@@ -41,4 +41,7 @@ Verification:
 ```powershell
 pnpm.cmd --dir apps/web lint
 pnpm.cmd --dir apps/web build
+pnpm.cmd --dir apps/web start --hostname 127.0.0.1 --port 3001
 ```
+
+The production smoke URL is `http://127.0.0.1:3001`. The API must allow this origin through `ALLOWED_ORIGINS` when testing the built app locally.

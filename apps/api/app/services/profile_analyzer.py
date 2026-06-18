@@ -11,6 +11,7 @@ from app.models import (
     ConversationImport,
     ImportedConversation,
     ImportedMessage,
+    ProfileObservationOverride,
     ProblemSession,
     PromptingTrait,
     PromptingTraitSignal,
@@ -645,6 +646,7 @@ def _profile_response(database, profile_id: str) -> PromptProfileResponse:
                 PromptingTraitSignal.trait
             ),
             selectinload(UserPromptProfile.platform_preferences),
+            selectinload(UserPromptProfile.observation_overrides),
         )
         .where(UserPromptProfile.id == profile_id)
     )
@@ -655,17 +657,31 @@ def _profile_response(database, profile_id: str) -> PromptProfileResponse:
     for signal in profile.signals:
         signals_by_trait[signal.trait_key].append(signal)
 
+    overrides = {
+        override.trait_key: override
+        for override in profile.observation_overrides
+    }
     traits = [
         TraitObservationResponse(
             id=observation.id,
             trait_key=observation.trait_key,
             trait_label=observation.trait.label if observation.trait else observation.trait_key,
             category=observation.trait.category if observation.trait else "foundation",
-            score=observation.score,
+            score=(
+                overrides[observation.trait_key].corrected_score
+                if observation.trait_key in overrides
+                and overrides[observation.trait_key].corrected_score is not None
+                else observation.score
+            ),
             confidence=observation.confidence,
             evidence_level=_evidence_level(observation.confidence, len(signals_by_trait[observation.trait_key])),
             signal_count=len(signals_by_trait[observation.trait_key]),
-            summary=observation.summary,
+            summary=(
+                overrides[observation.trait_key].corrected_summary
+                if observation.trait_key in overrides
+                and overrides[observation.trait_key].corrected_summary
+                else observation.summary
+            ),
             evidence=observation.evidence,
             signals=[
                 PromptingTraitSignalResponse(
@@ -689,10 +705,19 @@ def _profile_response(database, profile_id: str) -> PromptProfileResponse:
             ],
             source_type=observation.source_type,
             source_ref=observation.source_ref,
+            user_corrected=observation.trait_key in overrides
+            and overrides[observation.trait_key].action == "corrected",
+            user_note=(
+                overrides[observation.trait_key].note
+                if observation.trait_key in overrides
+                else None
+            ),
             created_at=observation.created_at,
             updated_at=observation.updated_at,
         )
         for observation in profile.observations
+        if overrides.get(observation.trait_key) is None
+        or overrides[observation.trait_key].action != "hidden"
     ]
     traits.sort(key=lambda item: (item.category, item.trait_label))
 

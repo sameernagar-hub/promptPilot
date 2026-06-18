@@ -31,6 +31,10 @@ Phase 3 endpoints:
 - `GET /saved-prompts`
 - `GET /profile`
 - `POST /profile/refresh`
+- `GET /profile/insights`
+- `POST /profile/questions`
+- `PATCH /profile/observations/{observation_id}`
+- `DELETE /profile/observations/{observation_id}`
 - `POST /imports`
 - `GET /imports`
 - `GET /imports/{import_id}`
@@ -134,3 +138,20 @@ Invoke-RestMethod `
 - `run-pipeline` stores the selected platform preference snapshot in `platform_preferences` for the local prompting profile.
 - `GET /profile` returns platform preferences so the frontend can seed fresh workspace settings.
 - Prompt scores include `platform_fit`.
+
+Phase 13 profile Q&A and dashboard:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/profile/insights
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/profile/questions `
+  -ContentType 'application/json' `
+  -Body '{"question":"How should I prompt Codex better?"}'
+```
+
+- `GET /profile/insights` returns common missing details, preferences, frequent domains, platform advice, and recent prompt revisions.
+- `POST /profile/questions` answers from stored traits, signals, sessions, imports, and revisions with evidence references.
+- `PATCH /profile/observations/{observation_id}` stores user corrections.
+- `DELETE /profile/observations/{observation_id}` hides observations through refresh-safe overrides.
+- `ALLOWED_ORIGINS` configures CORS for local dev, local production checks, and hosted frontend origins.

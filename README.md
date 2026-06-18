@@ -79,9 +79,9 @@ AI and evaluation:
 
 ## Current Status
 
-Current project status: Phase 12 advanced controls and target platform output is complete. The local environment, monorepo scaffold, local Postgres/pgvector service, FastAPI workflow, SQLAlchemy persistence, guided Next.js workspace, profile dashboard, trait signal detector, chat import foundation, domain confirmation flow, refinement-first prompt workflow, and platform-aware prompt controls are ready.
+Current project status: Phase 13 profile Q&A and UX dashboard is complete. The local environment, monorepo scaffold, local Postgres/pgvector service, FastAPI workflow, SQLAlchemy persistence, guided Next.js workspace, profile dashboard, trait signal detector, chat import foundation, domain confirmation flow, refinement-first prompt workflow, platform-aware prompt controls, and grounded profile Q&A are ready.
 
-Roadmap status: the plan has pivoted from a prompt knowledge base first to a user-experience-led prompting profile system. Phase 13 is next: Profile Q&A and UX Dashboard.
+Roadmap status: the plan has pivoted from a prompt knowledge base first to a user-experience-led prompting profile system. Phase 14 is next: Session Onboarding, Evaluation, Privacy, and Production Readiness. Phase 15 then cleans the codebase, README, minimal UX, AI-formatted outputs, and deployment readiness before Phase 16 deploys the local Next.js frontend and local FastAPI backend directly to Vercel.
 
 Completed so far:
 
@@ -135,10 +135,12 @@ Completed so far:
 - Prompt output now changes for Codex, Claude, ChatGPT, Gemini, Cursor, and generic assistants.
 - Platform preferences persist into the local prompting profile and seed fresh workspace sessions.
 - Prompt scoring includes platform fit.
+- Phase 13 adds grounded profile Q&A, insight dashboard sections, evidence references, and observation correction/hide flows.
+- API CORS can be configured with `ALLOWED_ORIGINS` for local dev, local production, and future hosted origins.
 
 Not started yet:
 
-- Profile Q&A and prompting insight dashboard
+- Session onboarding, rules acceptance, guardrails, clean-slate user sessions, evaluation, privacy, production readiness, codebase cleanup, knowledge support systems, and final Vercel deployment
 
 ## Planning Documents
 
@@ -147,11 +149,9 @@ Not started yet:
 - `execution-reports/CURRENT_STATUS.md`: current project state.
 - `execution-reports/00-environment-inventory.md`: installed local tools and environment notes.
 - `execution-reports/01-raw-materials.md`: technologies, modules, screens, APIs, tables, and evaluation materials.
-- `execution-reports/phases/`: phase-by-phase execution logs from Phase 0 through Phase 15.
+- `execution-reports/phases/`: phase-by-phase execution logs from Phase 0 through Phase 16.
 - `execution-reports/CHANGELOG.md`: chronological record of checks, edits, commits, and sync steps.
 
 ## Next Step
 
-The next implementation step is Phase 13: Profile Q&A and UX Dashboard.
-
-This phase should let users ask grounded questions about their prompting behavior and review platform-specific advice from profile evidence.
+The next implementation step is Phase 14: Session Onboarding, Evaluation, Privacy, and Production Readiness.

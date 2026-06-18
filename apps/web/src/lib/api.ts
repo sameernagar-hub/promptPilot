@@ -162,8 +162,62 @@ export type TraitObservation = {
   }[];
   source_type: string;
   source_ref: string | null;
+  user_corrected: boolean;
+  user_note: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type ProfileEvidenceReference = {
+  type: string;
+  label: string;
+  excerpt?: string | null;
+  session_id?: string | null;
+  imported_message_id?: string | null;
+  trait_key?: string | null;
+  confidence?: number | null;
+};
+
+export type ProfileInsightItem = {
+  title: string;
+  detail: string;
+  confidence: number;
+  evidence: ProfileEvidenceReference[];
+  action?: string | null;
+};
+
+export type ProfileInsights = {
+  profile_status: string;
+  headline: string;
+  common_missing_details: ProfileInsightItem[];
+  preferences: ProfileInsightItem[];
+  frequent_domains: ProfileInsightItem[];
+  platform_advice: ProfileInsightItem[];
+  recent_revisions: ProfileInsightItem[];
+  suggested_questions: string[];
+  empty_state?: string | null;
+};
+
+export type ProfileQuestionResponse = {
+  question: string;
+  answer: string;
+  confidence: number;
+  evidence_level: string;
+  evidence: ProfileEvidenceReference[];
+  suggested_followups: string[];
+  needs_more_evidence: boolean;
+};
+
+export type ProfileObservationUpdate = {
+  summary?: string | null;
+  score?: number | null;
+  note?: string | null;
+};
+
+export type ProfileObservationDeleteResponse = {
+  id: string;
+  deleted: boolean;
+  trait_key: string;
 };
 
 export type PromptProfile = {
@@ -413,6 +467,36 @@ export async function refreshProfile() {
     method: "POST",
     body: JSON.stringify({}),
   });
+}
+
+export async function getProfileInsights() {
+  return request<ProfileInsights>("/profile/insights");
+}
+
+export async function askProfileQuestion(question: string) {
+  return request<ProfileQuestionResponse>("/profile/questions", {
+    method: "POST",
+    body: JSON.stringify({ question }),
+  });
+}
+
+export async function correctProfileObservation(
+  observationId: string,
+  payload: ProfileObservationUpdate,
+) {
+  return request<PromptProfile>(`/profile/observations/${observationId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteProfileObservation(observationId: string) {
+  return request<ProfileObservationDeleteResponse>(
+    `/profile/observations/${observationId}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export async function getImports() {

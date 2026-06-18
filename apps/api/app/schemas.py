@@ -247,8 +247,66 @@ class TraitObservationResponse(BaseModel):
     signals: list[PromptingTraitSignalResponse] = Field(default_factory=list)
     source_type: str
     source_ref: str | None = None
+    user_corrected: bool = False
+    user_note: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class ProfileEvidenceReference(BaseModel):
+    type: str
+    label: str
+    excerpt: str | None = None
+    session_id: str | None = None
+    imported_message_id: str | None = None
+    trait_key: str | None = None
+    confidence: float | None = None
+
+
+class ProfileInsightItem(BaseModel):
+    title: str
+    detail: str
+    confidence: float = 0.0
+    evidence: list[ProfileEvidenceReference] = Field(default_factory=list)
+    action: str | None = None
+
+
+class ProfileInsightsResponse(BaseModel):
+    profile_status: str
+    headline: str
+    common_missing_details: list[ProfileInsightItem] = Field(default_factory=list)
+    preferences: list[ProfileInsightItem] = Field(default_factory=list)
+    frequent_domains: list[ProfileInsightItem] = Field(default_factory=list)
+    platform_advice: list[ProfileInsightItem] = Field(default_factory=list)
+    recent_revisions: list[ProfileInsightItem] = Field(default_factory=list)
+    suggested_questions: list[str] = Field(default_factory=list)
+    empty_state: str | None = None
+
+
+class ProfileQuestionRequest(BaseModel):
+    question: str = Field(..., min_length=3, max_length=500)
+
+
+class ProfileQuestionResponse(BaseModel):
+    question: str
+    answer: str
+    confidence: float = 0.0
+    evidence_level: str
+    evidence: list[ProfileEvidenceReference] = Field(default_factory=list)
+    suggested_followups: list[str] = Field(default_factory=list)
+    needs_more_evidence: bool = False
+
+
+class ProfileObservationUpdateRequest(BaseModel):
+    summary: str | None = Field(default=None, min_length=3, max_length=1200)
+    score: float | None = Field(default=None, ge=0.0, le=1.0)
+    note: str | None = Field(default=None, max_length=1200)
+
+
+class ProfileObservationDeleteResponse(BaseModel):
+    id: str
+    deleted: bool
+    trait_key: str
 
 
 class PlatformPreferenceResponse(BaseModel):
