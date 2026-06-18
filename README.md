@@ -81,7 +81,7 @@ AI and evaluation:
 
 Current project status: Phase 13 profile Q&A and UX dashboard is complete. The local environment, monorepo scaffold, local Postgres/pgvector service, FastAPI workflow, SQLAlchemy persistence, guided Next.js workspace, profile dashboard, trait signal detector, chat import foundation, domain confirmation flow, refinement-first prompt workflow, platform-aware prompt controls, and grounded profile Q&A are ready.
 
-Roadmap status: the plan has pivoted from a prompt knowledge base first to a user-experience-led prompting profile system. Phase 14 is next: Session Onboarding, Evaluation, Privacy, and Production Readiness. Phase 15 then cleans the codebase, README, minimal UX, AI-formatted outputs, and deployment readiness before Phase 16 deploys the local Next.js frontend and local FastAPI backend directly to Vercel.
+Roadmap status: the plan has pivoted from a prompt knowledge base first to a user-experience-led prompting profile system. Phase 14 is next: Session Onboarding, Live Evaluation, Privacy, and Production Readiness, with `POST /sessions/{session_id}/run-pipeline` becoming the live scoring path for prompt quality improvement. Phase 15 then cleans the codebase, README, minimal UX, AI-formatted scoring explanations, platform-fit ratings, recommended actions, and deployment readiness before Phase 16 deploys the local Next.js frontend and local FastAPI backend directly to Vercel.
 
 Completed so far:
 
@@ -134,7 +134,7 @@ Completed so far:
 - Phase 12 adds target platform, interaction mode, reasoning style, detail level, formality, temperature, and source strictness controls.
 - Prompt output now changes for Codex, Claude, ChatGPT, Gemini, Cursor, and generic assistants.
 - Platform preferences persist into the local prompting profile and seed fresh workspace sessions.
-- Prompt scoring includes platform fit.
+- Prompt scoring includes platform fit, and Phase 14 will evolve scoring into a live Ollama-backed evaluation path for the interactive session pipeline.
 - Phase 13 adds grounded profile Q&A, insight dashboard sections, evidence references, and observation correction/hide flows.
 - API CORS can be configured with `ALLOWED_ORIGINS` for local dev, local production, and future hosted origins.
 
@@ -154,4 +154,4 @@ Not started yet:
 
 ## Next Step
 
-The next implementation step is Phase 14: Session Onboarding, Evaluation, Privacy, and Production Readiness.
+The next implementation step is Phase 14: Session Onboarding, Live Evaluation, Privacy, and Production Readiness.

@@ -872,3 +872,13 @@ This changelog records every meaningful command, check, file edit, and project-c
 - Removed stale managed-backend check notes from the changelog.
 - Verified the repository has no managed-backend platform config, package reference, environment variable reference, or local project folder.
 - Clarified that Phase 16 deploys the local Next.js frontend and local FastAPI backend directly to Vercel from this repository.
+
+### Phase 14 And Phase 15 Live Evaluation Scope Alignment
+
+- Updated Phase 14 to treat evaluation as a live backend pipeline feature centered on improving how a person talks to AI.
+  - Added `POST /sessions/{session_id}/run-pipeline` as the live scoring workflow for prompt quality improvement.
+  - Added dynamic evaluation criteria for input-to-contract improvement, contract completeness, skipped-question assumptions, domain accuracy, clarification value, platform fit, safety/privacy integrity, and user actionability.
+  - Added local `Ollama` `llama3.1:8b` scorer integration scope and promptfoo regression coverage for live scoring algorithms.
+- Updated Phase 15 to own dashboard-ready scoring output.
+  - Added AI-formatted scoring explanations, platform-fit ratings, recommended actions, and guardrails for explaining why a variant fits the selected platform, including Claude versus OpenAI/ChatGPT.
+- Updated `EXECUTION_LOG.md`, `README.md`, `execution-reports/README.md`, `execution-reports/CURRENT_STATUS.md`, `execution-reports/01-raw-materials.md`, `execution-reports/phases/phase-14-evaluation-privacy-production-readiness.md`, and `execution-reports/phases/phase-15-knowledge-rag-dspy-agent-tracks.md`.

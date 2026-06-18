@@ -779,9 +779,20 @@ Verification:
 
 ---
 
-## Phase 14: Session Onboarding, Evaluation, Privacy, and Production Readiness
+## Phase 14: Session Onboarding, Live Evaluation, Privacy, and Production Readiness
 
-Goal: Make PromptPilot trustworthy and usable for real users by adding a session-first onboarding layer, strict guardrails, clean-slate user data, personalized AI-platform guidance, and evaluation coverage for privacy-critical behavior.
+Goal: Make PromptPilot trustworthy and useful for real users by adding a session-first onboarding layer, strict guardrails, clean-slate user data, personalized AI-platform guidance, and live evaluation metrics that protect and score the quality of each interactive prompting session.
+
+Core product goal:
+
+Improve how a person talks to AI.
+
+Evaluation posture:
+
+- Treat evaluation as a live product pipeline feature, not only a static development benchmark.
+- Make `POST /sessions/{session_id}/run-pipeline` the main place where session quality is measured, scored, persisted, and returned to the frontend.
+- Evaluate whether PromptPilot improves the user's raw input into a clearer, safer, platform-aware prompt contract.
+- Preserve all Phase 0 through Phase 13 behavior, including local Postgres/pgvector schema support, open-domain confirmation, skipped-question assumptions, platform-aware prompt output, and `trait_detector_v1` profile trait signal detection.
 
 Session and onboarding model:
 
@@ -797,6 +808,46 @@ Session and onboarding model:
 - Starting a new session begins from a clean slate and does not inherit example data, imported chats, prompt history, profile observations, or previous scores.
 - Require the user to accept a short rules and acceptable-use agreement before the session begins.
 
+Live pipeline evaluation workflow:
+
+```txt
+raw user request
+-> active session profile and selected target platform
+-> open-domain classification and confirmation state
+-> clarifying questions, answers, skipped questions, and assumptions
+-> platform-aware prompt contract generation
+-> dynamic local evaluator scoring through Ollama llama3.1:8b
+-> normalized score breakdown, recommendation, explanation, and recommended actions
+-> persisted prompt score records and dashboard-ready API payload
+```
+
+Dynamic session evaluation criteria:
+
+- `input_to_contract_improvement`: how much the final prompt improves the user's messy raw input into a usable AI instruction.
+- `contract_completeness`: whether the prompt contract includes role, task, context, domain, constraints, audience, tone, formality, detail level, output format, success criteria, assumptions, follow-up behavior, and safety/source boundaries.
+- `assumption_handling`: whether skipped or unanswered required questions are carried forward as explicit assumptions without pretending the missing context is known.
+- `domain_accuracy`: whether detected, confirmed, or corrected domain context is reflected accurately in the prompt and scoring explanation.
+- `clarification_value`: whether clarifying questions reduce ambiguity and improve the recommended variant.
+- `platform_fit`: whether the prompt is shaped for the selected target platform, including Claude, OpenAI/ChatGPT, Codex, Gemini, Cursor, or generic assistants.
+- `safety_privacy_integrity`: whether sensitive requests, secrets, imported content, and misuse attempts are handled with the correct warnings, redaction, or refusal/redirect behavior.
+- `user_actionability`: whether the recommended variant and explanation help the user understand what to do next.
+
+Ollama-backed live scoring:
+
+- Wire the backend evaluation path to local `Ollama` with `llama3.1:8b` for dynamic scoring of generated prompt variants during `POST /sessions/{session_id}/run-pipeline`.
+- Use the local model to score prompt quality improvement, contract completeness, assumptions, domain accuracy, and platform fit across the live variants.
+- Normalize model output into validated fields before persistence or display, including numeric score dimensions, a recommendation label, a short explanation, and recommended user actions.
+- Record the scoring model and scorer version so results can be audited and compared against future scoring changes.
+- Keep deterministic rule scoring available as a local fallback only when the evaluator is unavailable, and make that fallback visible in the scorer metadata.
+
+promptfoo regression coverage:
+
+- Use `promptfoo` in Phase 14 to test the live scoring algorithms, not as a separate product surface.
+- Add a diverse scenario suite under `evals/promptfoo` that calls the live backend workflow or an equivalent scoring harness.
+- Cover messy raw prompts, skipped clarifying questions, domain ambiguity and correction, profile-trait influence, target-platform differences, sensitive domains, redaction, and prompt-injection style imported content.
+- Assert that scores stay within schema, recommendations rank the strongest variant, skipped questions become assumptions, platform fit changes when the selected platform changes, unsafe requests are not recommended, and explanations remain actionable.
+- Run promptfoo before Phase 14 is considered complete so scoring behavior cannot regress silently.
+
 Evaluation coverage:
 
 ```txt
@@ -804,11 +855,19 @@ session start and end behavior
 session persistence until explicit end
 clean-slate session creation
 name and AI platform personalization
+live run-pipeline scoring behavior
+Ollama llama3.1:8b evaluator integration
+promptfoo scoring regression suite
+input-to-contract improvement
+contract completeness
+assumption handling for skipped questions
+domain accuracy after confirmation or correction
 trait detection accuracy
 domain detection and confirmation
 clarifying question quality
 refined prompt completeness
 platform-specific prompt fit
+recommendation explanation usefulness
 profile Q&A grounding
 redaction behavior
 deletion and reprocessing behavior
@@ -823,6 +882,7 @@ Production features:
 - Prompt and import history.
 - Prompt versioning.
 - Feedback and ratings.
+- Live evaluation scores and scorer metadata for generated variants.
 - Rate limits.
 - Model usage and cost tracking.
 - Audit logs for model runs and imports.
@@ -855,20 +915,26 @@ Security and safety:
 
 Planned work:
 
-- Build the session onboarding screen and session store.
-- Add display-name and AI-platform fields to the session model.
-- Add the supported AI-platform list with an Other option.
-- Add rules acceptance and guardrail checks before entering the workspace.
-- Add Start New Session and End Session flows.
-- Remove precreated examples and demo data from the default production path.
-- Personalize workspace, profile, refinement, and Q&A copy around the active session.
-- Simplify score-heavy UI so user-facing guidance is readable before raw metrics.
-- Ensure all generated outputs pass through the AI formatter before display.
-- Add or extend the evaluation suite.
-- Add tests for privacy-critical behaviors.
-- Define session, auth, and ownership boundaries before real chat storage.
-- Add export and delete flows for profile data.
-- Add audit logs for model runs and imports.
+- [ ] Build the session onboarding screen and session store.
+- [ ] Add display-name and AI-platform fields to the session model.
+- [ ] Add the supported AI-platform list with an Other option.
+- [ ] Add rules acceptance and guardrail checks before entering the workspace.
+- [ ] Add Start New Session and End Session flows.
+- [ ] Remove precreated examples and demo data from the default production path.
+- [ ] Personalize workspace, profile, refinement, and Q&A copy around the active session.
+- [ ] Extend `POST /sessions/{session_id}/run-pipeline` so live scoring is part of the backend workflow instead of a detached benchmark step.
+- [ ] Add dynamic scoring dimensions for input-to-contract improvement, contract completeness, assumption handling, domain accuracy, clarification value, platform fit, safety/privacy integrity, and user actionability.
+- [ ] Wire local `Ollama` with `llama3.1:8b` into the live scorer for generated prompt variants.
+- [ ] Normalize and validate AI-generated score output before it is stored in `prompt_scores`, prompt variant metadata, or API responses.
+- [ ] Preserve current deterministic scoring behavior as an explicit fallback with visible scorer metadata.
+- [ ] Add promptfoo scenarios for diverse user requests, skipped questions, domain correction, platform-specific recommendations, sensitive prompts, redaction, and profile-trait influence.
+- [ ] Use promptfoo assertions to prevent regressions in score schema, ranking, assumptions, domain fit, platform fit, safety behavior, and recommendation explanations.
+- [ ] Simplify score-heavy UI so user-facing guidance is readable before raw metrics.
+- [ ] Ensure all generated outputs pass through the AI formatter before display.
+- [ ] Add tests for privacy-critical behaviors.
+- [ ] Define session, auth, and ownership boundaries before real chat storage.
+- [ ] Add export and delete flows for profile data.
+- [ ] Add audit logs for model runs, imports, and evaluator/scorer runs.
 
 Verification:
 
@@ -881,18 +947,27 @@ Verification:
 - Logo click returns to the home workspace.
 - User-facing outputs are AI-formatted, personalized, and free of raw `Problem: ...` style echoes.
 - Scores are readable and detailed metrics are not the dominant UI.
+- `POST /sessions/{session_id}/run-pipeline` returns live evaluation fields for each generated variant.
+- Dynamic scores measure prompt quality improvement, contract completeness, assumptions, domain accuracy, and platform fit.
+- Skipped clarifying questions are reflected as assumptions and affect scoring confidence or specificity.
+- Confirmed or corrected domains improve domain-fit scoring and explanation text.
+- Local `Ollama` with `llama3.1:8b` can score live variants in local development.
+- Scorer metadata identifies whether `Ollama` or the deterministic fallback produced the score.
+- promptfoo scenarios cover diverse messy user inputs, target platforms, skipped questions, safety/privacy cases, and profile-trait influence.
+- promptfoo regression checks pass locally.
 - Guardrails block misuse and safely redirect allowed use cases.
 - Evaluation suite runs locally.
 - Privacy-critical behaviors have tests.
 - Session, auth, and ownership boundaries are explicit before storing real user chat history.
 - Users can export and delete their profile data.
 - Audit logs exist for imports and model runs.
+- Existing Phase 0 through Phase 13 behavior remains intact, including local Postgres/pgvector schemas and `trait_detector_v1` signal generation.
 
 ---
 
-## Phase 15: Codebase Cleanup, Minimal UX, Knowledge Support, and Pre-Deploy Polish
+## Phase 15: Codebase Cleanup, AI-Formatted Outputs, Knowledge Support, and Pre-Deploy Polish
 
-Goal: Prepare PromptPilot for Phase 16 Vercel deployment by cleaning the codebase, simplifying the product surface, documenting the architecture, and keeping knowledge base, RAG, DSPy, and agent-track work as support systems behind the session-first product.
+Goal: Prepare PromptPilot for Phase 16 Vercel deployment by cleaning the codebase, simplifying the product surface, documenting the architecture, and ensuring AI-generated scoring explanations, platform-fit ratings, and recommended actions are cleanly formatted for the Next.js dashboards.
 
 Codebase cleanup:
 
@@ -900,7 +975,7 @@ Codebase cleanup:
 - Keep the useful execution reports, but make the current status and roadmap concise enough to support deployment.
 - Audit `.gitignore`, environment examples, generated files, local logs, and development-only assets.
 - Remove seeded demo data paths from production startup.
-- Make sure no production code depends on local-only services such as `localhost`, local Docker, or local Ollama.
+- Make sure no production code depends on local-only services such as `localhost`, local Docker, or local Ollama, while preserving local Ollama as a documented development evaluator from Phase 14.
 - Ensure the app can run from a clean install using documented commands and environment variables.
 - Keep the implementation minimal by removing unused components, dead API routes, orphaned helpers, stale constants, and old UI copy.
 
@@ -924,6 +999,16 @@ Minimal UX and session continuity:
 - Hide raw scoring figures, traces, and implementation details behind optional expanded views.
 - Keep mobile, tablet, and desktop layouts polished before deployment.
 
+AI-formatted scoring output:
+
+- Ensure AI-generated scoring explanations, platform-fit ratings, and recommended actions are cleanly formatted and safe to surface in the Next.js workspace, comparison view, profile dashboard, and future evaluation dashboards.
+- Define a frontend-ready scoring contract that can include `score_total`, `score_breakdown`, `platform_fit_rating`, `recommendation_label`, `recommendation_summary`, `why_this_variant`, `assumption_notes`, `recommended_actions`, and `scorer_metadata`.
+- Keep score explanations short, specific, and user-facing. They should explain why a variant is recommended for the selected platform, such as Claude versus OpenAI/ChatGPT, without exposing raw evaluator prompts or model chatter.
+- Translate evaluation metrics into clear feedback about how the user's raw request improved, what assumptions remain, which domain details matter, and what action the user should take next.
+- Make platform-fit guidance explicit: explain why a Claude prompt may emphasize long-context structure and nuance, why an OpenAI/ChatGPT prompt may emphasize portable explicit instructions, why a Codex prompt may emphasize repository context and verification, and why generic prompts avoid provider-specific assumptions.
+- Guardrail output formatting so dashboard text never appears as raw JSON, chain-of-thought, internal scoring rubrics, unvalidated model output, or raw `Problem: ...` echoes.
+- Put detailed numeric metrics behind expandable UI while leading with the recommendation, plain-language rationale, and next action.
+
 AI-first output polish:
 
 - Ensure every visible output that interprets or rewrites user intent goes through the AI formatting layer.
@@ -931,6 +1016,7 @@ AI-first output polish:
 - Keep generated responses aligned with the selected AI platform's expected style.
 - Remove raw echo formats such as `Problem: ...` unless they are part of a deliberate export format.
 - Ensure the product voice stays consistent across workspace, profile, imports, library, exports, and Q&A.
+- Include scoring explanations and recommended actions in the same formatting pass so evaluation output feels like product guidance, not a developer report.
 
 Prompt knowledge base role:
 
@@ -966,6 +1052,10 @@ Verification:
 - Session state sticks until the user explicitly ends it.
 - No seeded demo examples or precreated user data appear in a new production session.
 - All user-facing interpreted outputs are AI-formatted and personalized.
+- Scoring explanations, platform-fit ratings, and recommended actions are formatted for frontend display.
+- Recommended variants explain why they fit the selected target platform, including Claude versus OpenAI/ChatGPT-style differences when relevant.
+- Dashboard copy translates scores into actionable user feedback instead of exposing raw evaluator internals.
+- Output guardrails prevent raw JSON, chain-of-thought, unvalidated evaluator text, raw `Problem: ...` echoes, and confusing score dumps from appearing in the UI.
 - Knowledge sources are licensed and tracked.
 - RAG outputs are synthesized rather than copied.
 - DSPy modules conform to existing schemas.
@@ -1056,8 +1146,8 @@ Use this checklist when starting implementation:
 - [x] Add clarification-first prompt refinement.
 - [x] Add advanced controls and platform-aware prompt output.
 - [x] Add profile Q&A dashboard.
-- [ ] Add privacy, evaluation, and production readiness.
-- [ ] Add knowledge base, RAG, DSPy, and agent tracks as support systems.
+- [ ] Add session onboarding, live evaluation, privacy, and production readiness.
+- [ ] Add codebase cleanup, AI-formatted scoring outputs, knowledge support, RAG, DSPy, and agent tracks as support systems.
 - [ ] Install Vercel CLI and deploy the complete public production application on Vercel.
 
 ---
@@ -1068,4 +1158,4 @@ Status: Phase 13 profile Q&A and UX dashboard complete.
 
 Next recommended step:
 
-Start Phase 14: Session Onboarding, Evaluation, Privacy, and Production Readiness.
+Start Phase 14: Session Onboarding, Live Evaluation, Privacy, and Production Readiness.

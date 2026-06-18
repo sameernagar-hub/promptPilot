@@ -8,7 +8,7 @@ This file lists the project ingredients from `EXECUTION_LOG.md` so implementatio
 - Product purpose: prompting experience intelligence platform.
 - Primary promise: "Understand how you prompt. Then help you ask every AI system better."
 - Completed MVP goal: turn messy problems into classified, clarified, tunable, scored prompt variants.
-- Revised roadmap goal: build prompting profiles, study imported chat history, confirm domains, ask clarifying questions before recommendation, and generate platform-aware refined prompts.
+- Revised roadmap goal: build prompting profiles, study imported chat history, confirm domains, ask clarifying questions before recommendation, generate platform-aware refined prompts, and score live session quality around improving how a person talks to AI.
 
 ## MVP User Capabilities
 
@@ -76,9 +76,10 @@ This file lists the project ingredients from `EXECUTION_LOG.md` so implementatio
 
 - Ollama
 - Initial model: `llama3.1:8b`
+- Local Ollama-backed dynamic evaluator for Phase 14 `run-pipeline` scoring
 - LiteLLM provider abstraction
 - DSPy signatures and optimizers
-- promptfoo evaluation config
+- promptfoo live scoring regression config
 - Langfuse tracing and prompt management
 
 ## Future Workflow Materials
@@ -246,8 +247,20 @@ apps/api/
 - safety
 - actionability
 - domain_fit
+- platform_fit
 - beginner_friendliness
 - expected_answer_quality
+
+## Live Session Evaluation Metrics
+
+- input_to_contract_improvement
+- contract_completeness
+- assumption_handling
+- domain_accuracy
+- clarification_value
+- platform_fit
+- safety_privacy_integrity
+- user_actionability
 
 ## Frontend Screens
 
@@ -301,14 +314,26 @@ apps/api/
 - Legal letter explanation
 - Workout plan request
 - Insurance plan comparison
+- Messy raw request with skipped clarifying questions
+- Ambiguous domain request with user correction
+- Same request targeted to Claude versus OpenAI/ChatGPT
+- Codex-oriented implementation request with repository constraints
+- Sensitive request requiring warning, refusal, or safe redirection
 
 ## Revised Evaluation Targets
 
+- Live `POST /sessions/{session_id}/run-pipeline` scoring
+- Input-to-contract improvement
+- Contract completeness
+- Assumption handling for skipped questions
+- Ollama `llama3.1:8b` evaluator output normalization
+- promptfoo regression coverage for live scoring behavior
 - Trait detection accuracy
 - Domain detection and confirmation
 - Clarifying question quality
 - Refined prompt completeness
 - Platform-specific prompt fit
+- Recommendation explanation usefulness
 - Profile Q&A grounding
 - Redaction behavior
 - Deletion and reprocessing behavior

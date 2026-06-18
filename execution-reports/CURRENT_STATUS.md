@@ -40,8 +40,8 @@ PromptPilot has completed Phase 13 profile Q&A and UX dashboard. The roadmap has
 - Phase 2 Docker Compose infrastructure exists at `infra/docker-compose.yml`.
 - Local Postgres with pgvector is running through Docker Compose.
 - Planning docs exist under `docs/`.
-- Phase 14 now includes session onboarding, name and AI-platform selection, rules acceptance, clean-slate sessions, personalization, and strict guardrails.
-- Phase 15 now covers codebase cleanup, minimal UX polish, README/documentation cleanup, AI-formatted outputs, session continuity checks, and final pre-deploy hardening.
+- Phase 14 now includes session onboarding, name and AI-platform selection, rules acceptance, clean-slate sessions, personalization, strict guardrails, and live `run-pipeline` evaluation using local Ollama-backed scoring plus promptfoo regression coverage.
+- Phase 15 now covers codebase cleanup, minimal UX polish, README/documentation cleanup, AI-formatted scoring explanations, platform-fit ratings, recommended actions, session continuity checks, and final pre-deploy hardening.
 - A final Vercel production deployment phase now exists as Phase 16.
 - Git repository exists and tracks `origin/main`.
 
@@ -65,9 +65,9 @@ PromptPilot has completed Phase 13 profile Q&A and UX dashboard. The roadmap has
 
 ## Recommended Next Decision
 
-Start Phase 14: Session Onboarding, Evaluation, Privacy, and Production Readiness.
+Start Phase 14: Session Onboarding, Live Evaluation, Privacy, and Production Readiness.
 
-Phase 15 is reserved for cleanup, documentation, minimal UX polish, AI-formatted output review, and pre-deploy hardening. Phase 16 is reserved for installing the Vercel CLI, configuring Vercel projects and production environment variables, and deploying the local Next.js frontend and local FastAPI backend directly to Vercel after Phase 15.
+Phase 15 is reserved for cleanup, documentation, minimal UX polish, AI-formatted scoring output review, platform-fit explanation guardrails, and pre-deploy hardening. Phase 16 is reserved for installing the Vercel CLI, configuring Vercel projects and production environment variables, and deploying the local Next.js frontend and local FastAPI backend directly to Vercel after Phase 15.
 
 ## Verified Local Startup URLs
 
