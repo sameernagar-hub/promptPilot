@@ -989,8 +989,19 @@ Codebase cleanup:
 - Audit `.gitignore`, environment examples, generated files, local logs, and development-only assets.
 - Remove seeded demo data paths from production startup.
 - Make sure no production code depends on local-only services such as `localhost`, local Docker, or local Ollama, while preserving local Ollama as a documented development evaluator from Phase 14.
+- Fail fast in production if required environment variables still point to local-only services, including local database URLs, local Ollama, or localhost CORS origins.
 - Ensure the app can run from a clean install using documented commands and environment variables.
 - Keep the implementation minimal by removing unused components, dead API routes, orphaned helpers, stale constants, and old UI copy.
+
+Local port and deployment simplification:
+
+- Keep exactly one local frontend port and one local API port for the full project:
+  - Frontend: `http://localhost:3000` or `http://127.0.0.1:3000`.
+  - API: `http://localhost:8000` or `http://127.0.0.1:8000`.
+- Remove extra preview smoke ports from local docs, environment examples, default CORS origins, and startup scripts.
+- Use the same frontend port for dev and local production-build smoke checks; stop the dev server before running `next start`.
+- Keep Vercel deployment docs production-first: deploy final API and final web projects with production environment variables, not a separate preview-port workflow.
+- CORS should allow only the single local frontend port during development plus the final production web origin during deployment.
 
 README and documentation cleanup:
 
@@ -1078,6 +1089,7 @@ Agent tracks role:
 Verification:
 
 - Codebase cleanup removes stale local-only artifacts, unused files, obsolete UI copy, and production-blocking assumptions.
+- Local development uses only one frontend port, `3000`, and one API port, `8000`; no extra preview ports remain in default config or docs.
 - `README.md`, `apps/api/README.md`, and `apps/web/README.md` accurately explain architecture, setup, functionality, sessions, guardrails, and deployment.
 - Current status, changelog, and phase docs do not conflict with the Phase 16 Vercel deployment plan.
 - The app remains minimal, responsive, and readable on mobile, tablet, and desktop.
@@ -1122,8 +1134,8 @@ Production setup:
   - API root: `apps/api`
 - Configure production environment variables:
   - Web: `NEXT_PUBLIC_API_BASE_URL`
-  - API: `DATABASE_URL`, `LLM_PROVIDER`, provider API keys, `DEFAULT_MODEL`, and allowed frontend origins.
-- Update API CORS configuration so the production web domain and preview domains can call the API.
+  - API: `APP_ENV=production`, `DATABASE_URL`, `LLM_PROVIDER`, provider API keys, `DEFAULT_MODEL`, and allowed frontend origins.
+- Update API CORS configuration so the production web domain can call the API, with only the approved single local frontend port allowed for development.
 - Confirm the FastAPI entrypoint is Vercel-compatible and exposes an ASGI `app`.
 - Confirm the frontend build uses the production API URL and remains responsive across mobile, tablet, and desktop.
 - Replace local schema bootstrapping with a production-safe migration or deployment step before storing real user data.
@@ -1136,10 +1148,10 @@ Deployment flow:
   - `pnpm.cmd --dir apps/web build`
 - Link and configure the API project with Vercel CLI.
 - Add API production secrets with Vercel environment commands or the Vercel dashboard.
-- Deploy the API preview, smoke test `/` and `/health`, then promote to production.
+- Deploy the API production project with `vercel deploy --prod`, then smoke test `/` and `/health`.
 - Link and configure the web project with Vercel CLI.
 - Set `NEXT_PUBLIC_API_BASE_URL` to the production API URL.
-- Deploy the web preview, test the full workflow against the production API, then deploy to production.
+- Deploy the web production project with `vercel deploy --prod`, then test the full workflow against the production API.
 - Attach the public production domain and verify HTTPS.
 
 Verification:
@@ -1148,7 +1160,7 @@ Verification:
 - The application is responsive on mobile, tablet, and desktop.
 - Public API `/health` returns healthy application and database status.
 - Web production can create sessions, run the pipeline, answer/skip clarifying questions, save prompts, view library, refresh profile, and use imports.
-- CORS allows only the intended Vercel production domain, preview domains if needed, and approved local development origins.
+- CORS allows only the intended Vercel production domain and approved single local development frontend origin.
 - Production logs are clean after smoke testing.
 - Deployment URLs, environment variable names, project IDs, and rollback notes are recorded in `execution-reports/`.
 
@@ -1190,8 +1202,8 @@ Use this checklist when starting implementation:
 
 ## Current Status
 
-Status: Phase 14 session onboarding, live evaluation, privacy, and production readiness are complete.
+Status: Phase 14 session onboarding, live evaluation, privacy, and production readiness are complete. Phase 15 is in progress.
 
 Next recommended step:
 
-Begin Phase 15: codebase cleanup, AI-formatted scoring output review, knowledge support, RAG, DSPy, agent-track support systems, minimalist UX polish, documentation cleanup, and pre-deploy hardening.
+Continue Phase 15: codebase cleanup, AI-formatted scoring output review, knowledge support, RAG, DSPy, agent-track support systems, minimalist UX polish, documentation cleanup, and pre-deploy hardening.

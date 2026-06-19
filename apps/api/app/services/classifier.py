@@ -185,6 +185,24 @@ DOMAIN_DEFINITIONS = [
             "portfolio",
         },
     ),
+    DomainDefinition(
+        key="hobby_project",
+        label="Hobby project",
+        subdomain="hands-on build or how-to project",
+        keywords={
+            "3d print",
+            "assemble",
+            "craft",
+            "diy",
+            "hobby",
+            "kit",
+            "maker",
+            "model rocket",
+            "rocket",
+            "scratch build",
+            "woodworking",
+        },
+    ),
 ]
 
 INTENT_KEYWORDS = {
@@ -192,6 +210,8 @@ INTENT_KEYWORDS = {
         "bug",
         "broken",
         "clicks",
+        "diagnose",
+        "diagnosis",
         "error",
         "fails",
         "fix",
@@ -201,12 +221,23 @@ INTENT_KEYWORDS = {
         "problem",
         "repair",
         "stale",
+        "troubleshoot",
         "won't",
     },
-    "build": {"build", "create", "make", "implement", "scaffold", "develop", "start"},
+    "build": {
+        "assemble",
+        "build",
+        "construct",
+        "create",
+        "develop",
+        "implement",
+        "make",
+        "scaffold",
+        "start",
+    },
     "write": {"write", "draft", "rewrite", "email", "letter", "message", "proposal"},
     "learn": {"learn", "explain", "teach", "understand", "study"},
-    "compare": {"compare", "choose", "versus", "vs", "tradeoff", "options"},
+    "compare": {"compare", "choose", "decide", "decision", "versus", "vs", "tradeoff", "options"},
     "research": {"research", "sources", "evidence", "summarize", "investigate"},
     "plan": {"plan", "roadmap", "phases", "workflow", "strategy"},
 }
@@ -235,6 +266,8 @@ RISK_KEYWORDS = {
         "deployment",
         "health",
         "repair",
+        "rocket",
+        "launch",
     },
 }
 

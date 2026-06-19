@@ -131,6 +131,41 @@ def test_platform_fit_granularity_differs(client: TestClient) -> None:
     _request(client, "DELETE", f"/sessions/{gemini_session['id']}/data")
 
 
+def test_build_intent_uses_creation_shape(client: TestClient) -> None:
+    session = _create_session(client, "I want to make a model rocket.", "chatgpt")
+    first = _run_pipeline(client, session["id"], "chatgpt", "refinement")
+    assert first["classification"]["intent"] == "build"
+    assert first["classification"]["domain"] == "hobby_project"
+    question_ids = {question["id"] for question in first["questions"]}
+    assert {"experience_level", "build_path", "tools_space"}.issubset(question_ids)
+
+    result = _run_pipeline(
+        client,
+        session["id"],
+        "chatgpt",
+        "quick",
+        answers=[
+            {
+                "question_id": "experience_level",
+                "state": "answered",
+                "answer": "teach me how to make a model rocket",
+            }
+        ],
+    )
+    prompt = _recommended_prompt(result)
+    prompt_text = prompt["prompt_text"].lower()
+    assert "scope clarification" in prompt_text
+    assert "materials, tools, and requirements checklist" in prompt_text
+    assert "likely causes" not in prompt_text
+    assert "careful diagnostic assistant" not in prompt_text
+    assert any(
+        item.startswith("low_information_answers_discarded")
+        for item in result["timeline"]
+    )
+    assert result["stage_timings_ms"]["template_assembly"] >= 0
+    _request(client, "DELETE", f"/sessions/{session['id']}/data")
+
+
 def test_export_audit_and_delete_completion(client: TestClient) -> None:
     session = _create_session(client, "Draft a support reply for a billing question.", "chatgpt")
     result = _run_pipeline(client, session["id"], "chatgpt", "quick")
@@ -194,6 +229,7 @@ def main() -> None:
         test_guardrail_blocks_malware(client)
         test_skipped_question_assumption_audit(client)
         test_platform_fit_granularity_differs(client)
+        test_build_intent_uses_creation_shape(client)
         test_export_audit_and_delete_completion(client)
         test_import_redaction_and_delete(client)
         test_profile_export_and_reset(client)

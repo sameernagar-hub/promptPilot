@@ -65,4 +65,4 @@ How can I make my research prompts stronger?
 - [x] `pnpm.cmd --dir apps/web lint` passes.
 - [x] `pnpm.cmd --dir apps/web build` passes.
 - [x] FastAPI smoke test passed for health, session creation, pipeline, profile refresh, insights, Q&A, correction, and hide flows.
-- [x] Local production Next.js profile page works against the API from `http://127.0.0.1:3001`.
+- [x] Local production Next.js profile page works against the API; Phase 15 standardizes local web checks on port `3000`.

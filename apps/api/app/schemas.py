@@ -217,6 +217,7 @@ class PromptEngineRunResponse(BaseModel):
     assumptions: list[str] = Field(default_factory=list)
     revisions: list[PromptRevisionResponse] = Field(default_factory=list)
     timeline: list[str]
+    stage_timings_ms: dict[str, float] = Field(default_factory=dict)
     guardrail_status: Literal["passed", "blocked"] = "passed"
     guardrail_message: str | None = None
     safe_redirect: str | None = None

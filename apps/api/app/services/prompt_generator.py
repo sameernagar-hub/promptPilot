@@ -4,7 +4,9 @@ from app.schemas import PromptSettings
 
 PROMPT_STRATEGIES = [
     "recommended_prompt",
+    "builder_plan",
     "diagnostic",
+    "learning_explainer",
     "beginner_step_by_step",
     "expert_consultant",
     "safety_first",
@@ -42,7 +44,113 @@ DOMAIN_ROLES = {
     "health_wellness": "a careful health information assistant",
     "legal_financial": "a cautious legal and financial research assistant",
     "creative_media": "a creative director",
+    "hobby_project": "a hands-on hobby project guide",
     "general_problem_solving": "a practical problem-solving coach",
+}
+
+BUILD_ROLES = {
+    "bicycle_repair": "a hands-on bicycle maintenance guide",
+    "automotive_repair": "a careful automotive project planning guide",
+    "home_repair": "a practical home project guide",
+    "software_engineering": "a senior software implementation guide",
+    "creative_media": "a creative production guide",
+    "hobby_project": "a hands-on hobby project guide",
+    "general_problem_solving": "a practical how-to guide",
+}
+
+LEARNING_ROLES = {
+    "software_engineering": "a patient technical educator",
+    "health_wellness": "a careful health education assistant",
+    "legal_financial": "a cautious legal and financial research educator",
+    "hobby_project": "a patient hands-on learning guide",
+    "general_problem_solving": "a patient explainer",
+}
+
+DECISION_ROLES = {
+    "business_strategy": "a pragmatic decision advisor",
+    "legal_financial": "a cautious decision-preparation assistant",
+    "hobby_project": "a practical project tradeoff advisor",
+    "general_problem_solving": "a practical decision coach",
+}
+
+INTENT_STRATEGIES = {
+    "build": "builder_plan",
+    "troubleshoot": "diagnostic",
+    "learn": "learning_explainer",
+    "compare": "comparison",
+    "research": "learning_explainer",
+    "plan": "builder_plan",
+}
+
+INTENT_RESPONSE_SHAPES = {
+    "build": {
+        "task": (
+            "Help the user create or build the requested thing. Clarify scope, choose an appropriate "
+            "approach or variant, then give an actionable build plan."
+        ),
+        "success": (
+            "The answer should turn the creation goal into a practical plan with scope choices, "
+            "requirements, materials, constraints, and safe next steps."
+        ),
+        "structure": [
+            "1. Scope clarification",
+            "2. Approach or variant choice",
+            "3. Step-by-step plan",
+            "4. Materials, tools, and requirements checklist",
+            "5. Safety, constraints, and what would change the plan",
+        ],
+    },
+    "troubleshoot": {
+        "task": (
+            "Help the user diagnose and fix the issue. Identify likely causes, collect evidence, "
+            "prioritize safe first actions, and name escalation triggers."
+        ),
+        "success": (
+            "The answer should narrow the problem safely, make evidence collection concrete, "
+            "and separate low-risk actions from escalation conditions."
+        ),
+        "structure": [
+            "1. Likely causes",
+            "2. Evidence to collect",
+            "3. Safest first actions",
+            "4. Escalation triggers",
+            "5. Assumptions and missing context",
+        ],
+    },
+    "learn": {
+        "task": (
+            "Help the user understand the topic. Explain the core concept, use examples, prevent "
+            "common misunderstandings, and suggest next learning steps."
+        ),
+        "success": (
+            "The answer should make the concept understandable at the user's level, with examples "
+            "and clear next steps instead of a generic overview."
+        ),
+        "structure": [
+            "1. Core concept",
+            "2. Examples",
+            "3. Common confusions",
+            "4. Suggested next steps",
+            "5. A focused follow-up question if context would improve the explanation",
+        ],
+    },
+    "compare": {
+        "task": (
+            "Help the user decide between options. Identify the options, compare tradeoffs, define "
+            "recommendation criteria, and suggest a choice when enough context exists."
+        ),
+        "success": (
+            "The answer should make the decision criteria explicit, compare tradeoffs fairly, and "
+            "recommend a choice or identify the missing fact that would decide it."
+        ),
+        "structure": [
+            "1. Options",
+            "2. Tradeoffs",
+            "3. Recommendation criteria",
+            "4. Suggested choice",
+            "5. What would change the recommendation",
+        ],
+    },
 }
 
 
@@ -131,7 +239,52 @@ def _domain_label(session: ProblemSession) -> str:
 def _role_for_session(session: ProblemSession) -> str:
     classification = session.classification or {}
     domain = str(session.detected_domain or classification.get("domain") or "general_problem_solving")
+    intent = _intent_for_session(session)
+    if intent == "build":
+        return BUILD_ROLES.get(domain, f"a practical {domain.replace('_', ' ')} build guide")
+    if intent == "learn":
+        return LEARNING_ROLES.get(domain, f"a patient {domain.replace('_', ' ')} educator")
+    if intent == "compare":
+        return DECISION_ROLES.get(domain, f"a practical {domain.replace('_', ' ')} decision advisor")
     return DOMAIN_ROLES.get(domain, f"a domain expert in {domain.replace('_', ' ')}")
+
+
+def _intent_for_session(session: ProblemSession) -> str:
+    classification = session.classification or {}
+    intent = str(session.detected_intent or classification.get("intent") or "clarify_and_plan")
+    aliases = {
+        "create": "build",
+        "diagnose": "troubleshoot",
+        "fix": "troubleshoot",
+        "explain": "learn",
+        "decide": "compare",
+    }
+    return aliases.get(intent, intent)
+
+
+def _response_shape_for_session(session: ProblemSession) -> dict[str, list[str] | str]:
+    intent = _intent_for_session(session)
+    if intent in INTENT_RESPONSE_SHAPES:
+        return INTENT_RESPONSE_SHAPES[intent]
+    if intent in {"write", "research"}:
+        return INTENT_RESPONSE_SHAPES["learn"]
+    if intent == "plan":
+        return INTENT_RESPONSE_SHAPES["build"]
+    return {
+        "task": (
+            "Help the user clarify the request, choose a useful approach, and produce practical next steps."
+        ),
+        "success": (
+            "The answer should be specific, actionable, bounded by known facts, and clear about missing context."
+        ),
+        "structure": [
+            "1. Best current interpretation",
+            "2. Recommended approach",
+            "3. Practical next steps",
+            "4. Constraints and assumptions",
+            "5. A concise follow-up question only if it would materially improve the answer",
+        ],
+    }
 
 
 def _question_lines(session: ProblemSession) -> list[str]:
@@ -284,21 +437,31 @@ def choose_prompt_strategies(
     needs_clarification: bool,
 ) -> list[str]:
     strategies: list[str] = ["recommended_prompt"]
+    intent = _intent_for_session(session)
+    intent_strategy = INTENT_STRATEGIES.get(intent)
+
+    if intent_strategy:
+        strategies.append(intent_strategy)
 
     if session.risk_level in {"medium", "high"} or settings.risk == "safe_only":
         strategies.append("safety_first")
     if needs_clarification:
         strategies.append("questions_first")
-    if session.detected_intent == "compare":
-        strategies.append("comparison")
-    if session.detected_intent == "troubleshoot":
-        strategies.append("diagnostic")
     if settings.skill_level == "expert":
         strategies.append("expert_consultant")
     else:
         strategies.append("beginner_step_by_step")
 
-    for fallback in ("diagnostic", "expert_consultant", "comparison", "questions_first"):
+    fallback_by_intent = {
+        "build": ("beginner_step_by_step", "expert_consultant", "questions_first"),
+        "troubleshoot": ("diagnostic", "safety_first", "questions_first"),
+        "learn": ("learning_explainer", "beginner_step_by_step", "expert_consultant"),
+        "compare": ("comparison", "expert_consultant", "questions_first"),
+    }
+    for fallback in fallback_by_intent.get(
+        intent,
+        ("expert_consultant", "beginner_step_by_step", "questions_first"),
+    ):
         strategies.append(fallback)
 
     unique: list[str] = []
@@ -330,6 +493,8 @@ def _prompt_for_strategy(
     reasoning_instruction = _reasoning_instruction(settings)
     interaction_instruction = _interaction_instruction(settings)
     formality_instruction = _formality_instruction(settings)
+    response_shape = _response_shape_for_session(session)
+    response_structure = "\n".join(str(item) for item in response_shape["structure"])
     recommended_title = (
         "Recommended Prompt"
         if settings.target_platform == "generic"
@@ -341,7 +506,7 @@ def _prompt_for_strategy(
             recommended_title,
             (
                 f"Role: You are {role}.\n"
-                f"Task: Help the user with this request using practical, domain-specific judgment.\n"
+                f"Task: {response_shape['task']}\n"
                 f"Target platform: {platform_label}.\n"
                 f"Platform behavior: {platform_behavior}\n"
                 f"Context: {session.raw_input}\n"
@@ -360,20 +525,31 @@ def _prompt_for_strategy(
                 f"{reasoning_instruction}\n"
                 f"{interaction_instruction}\n"
                 f"Output format: {settings.format}. {_format_instruction(settings)}\n"
-                "Success criteria: The answer should be specific, actionable, bounded by the known facts, and clear about what would change the recommendation.\n\n"
+                f"Success criteria: {response_shape['success']}\n\n"
                 "Assumptions:\n"
                 f"{assumptions}\n\n"
                 "Follow-up behavior:\n"
                 f"{questions}\n\n"
                 f"Safety or source boundaries: {_source_boundary(settings)}\n\n"
                 "Produce the final answer with this structure:\n"
-                "1. Best current interpretation\n"
-                "2. Recommended next actions\n"
-                "3. Risks, stop conditions, or escalation points\n"
-                "4. Assumptions and missing context\n"
-                "5. A concise follow-up question only if it would materially improve the answer\n\n"
+                f"{response_structure}\n\n"
                 f"User preferences:\n{settings_block}\n\n"
                 f"{length_instruction}"
+            ),
+        ),
+        "builder_plan": (
+            "Build Plan Prompt",
+            (
+                "Help the user create the requested project. Use a creation-first response shape: "
+                "scope clarification, approach or variant choice, step-by-step plan, and a materials "
+                "or requirements checklist. Use domain terminology and examples without turning the "
+                "task into troubleshooting unless the user reports a failure.\n\n"
+                f"{context}\n\nUser preferences:\n{settings_block}\n\n"
+                f"Assumptions to carry forward:\n{assumptions}\n\n"
+                f"Target platform behavior:\n{platform_behavior}\n\n"
+                f"{format_instruction} {length_instruction} "
+                "Include constraints, safety boundaries, and a short question only for missing details "
+                "that would materially change the build plan."
             ),
         ),
         "diagnostic": (
@@ -385,6 +561,19 @@ def _prompt_for_strategy(
                 f"Target platform behavior:\n{platform_behavior}\n\n"
                 f"{format_instruction} {length_instruction} "
                 "Respond with: likely causes, evidence to collect, safest first actions, and when to escalate."
+            ),
+        ),
+        "learning_explainer": (
+            "Learning Explainer",
+            (
+                "Help the user learn or understand the topic. Use the response shape: core concept, "
+                "examples, common confusions, and suggested next steps. Match the user's current level "
+                "and avoid turning the answer into a troubleshooting or build checklist unless requested.\n\n"
+                f"{context}\n\nUser preferences:\n{settings_block}\n\n"
+                f"Assumptions to carry forward:\n{assumptions}\n\n"
+                f"Target platform behavior:\n{platform_behavior}\n\n"
+                f"{format_instruction} {length_instruction} "
+                "Use clear examples and name the next thing the user should try to check understanding."
             ),
         ),
         "beginner_step_by_step": (
@@ -457,7 +646,11 @@ def generate_prompt_variants(
 ) -> list[PromptVariant]:
     context = "\n".join(_context_lines(session))
     settings_block = "\n".join(_settings_lines(settings))
-    selected_strategies = strategies or ["diagnostic", "beginner_step_by_step", "expert_consultant"]
+    selected_strategies = strategies or choose_prompt_strategies(
+        session,
+        settings,
+        needs_clarification=False,
+    )
     prompts: list[PromptVariant] = []
     for strategy in selected_strategies:
         title, prompt_text = _prompt_for_strategy(strategy, session, settings, context, settings_block)

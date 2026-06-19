@@ -943,3 +943,60 @@ This changelog records every meaningful command, check, file edit, and project-c
   - `pnpm.cmd --dir apps/web build` passed.
   - `git diff --check` passed with line-ending warnings only.
 - Updated `EXECUTION_LOG.md`, `execution-reports/README.md`, `execution-reports/CURRENT_STATUS.md`, and `execution-reports/phases/phase-14-evaluation-privacy-production-readiness.md` to mark Phase 14 complete and make Phase 15 the next recommended step.
+
+### Phase 15 Execution Started
+
+- Added the Phase 15 single-port deployment-readiness rule.
+  - Frontend local port: `3000`.
+  - API local port: `8000`.
+- Removed the extra local frontend smoke port from default API CORS origins and environment examples.
+- Pinned local startup scripts to the single API/frontend port contract.
+- Rewrote the root `README.md` for the current Phase 15 architecture, workflows, environment variables, verification, and production-first Vercel path.
+- Updated app READMEs, current status, Phase 15, Phase 16, and execution-log docs so the project no longer directs users through a separate local preview-port workflow.
+- Verification.
+  - `uv --directory apps/api run python -m compileall app` passed.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed.
+  - Search confirmed no remaining active `3001` or preview-deploy instructions outside ignored/generated/lockfile noise.
+  - `git diff --check` passed with line-ending warnings only.
+
+### Phase 15 Scoring Output Polish
+
+- Polished backend scoring metadata copy for frontend display.
+  - Recommendation summaries now include session-aware platform-readiness language.
+  - Prompt explanations no longer foreground raw score mechanics in the default workspace surface.
+  - Recommended action labels are clean product actions, with the UI providing the plus affordance.
+  - Platform names now render with product casing such as `ChatGPT`.
+- Polished the workspace post-execution UI.
+  - Removed the visible numeric score from the recommended prompt header.
+  - Added a compact optimization HUD for recommended micro-actions.
+  - Kept score breakdowns, platform-fit details, modification audit trails, skipped-question assumptions, rules matched, trait alignment, optimization paths, and scorer status behind expandable evaluation details.
+- Verification.
+  - `uv --directory apps/api run python -m compileall app` passed.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed.
+  - `uv --directory apps/api run python ..\..\evals\promptfoo\phase14_regression.py` passed.
+  - Started the API with `pnpm.cmd run dev:api` on `http://127.0.0.1:8000`.
+  - Started the web app with `pnpm.cmd run dev:web` on `http://localhost:3000`.
+  - `GET http://127.0.0.1:8000/health` returned status `ok` with database status `ok`.
+  - `GET http://127.0.0.1:3000` returned HTTP `200`.
+
+### Phase 15 Production Environment Hardening
+
+- Added API production configuration validation.
+  - `APP_ENV=production` now fails fast if `DATABASE_URL` is local-only.
+  - `APP_ENV=production` now fails fast if `LLM_PROVIDER=ollama`.
+  - `APP_ENV=production` now fails fast if `ALLOWED_ORIGINS` includes localhost.
+- Added frontend API URL hardening.
+  - Local development still falls back to `http://127.0.0.1:8000`.
+  - Non-development builds now require `NEXT_PUBLIC_API_BASE_URL` before API requests are made.
+- Updated `.env.example`, `apps/api/.env.example`, `README.md`, and `apps/api/README.md` with `APP_ENV`.
+- Verification.
+  - `uv --directory apps/api run python -m compileall app` passed.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - Production guard rejected local defaults as expected.
+  - Production-shaped API settings with managed database URL, hosted provider, and HTTPS origin loaded successfully.
+  - `pnpm.cmd --dir apps/web build` passed.
+  - `uv --directory apps/api run python ..\..\evals\promptfoo\phase14_regression.py` passed.
+  - Restarted API on `http://127.0.0.1:8000`; `/health` returned status `ok`.
+  - Web app remained available at `http://127.0.0.1:3000` with HTTP `200`.

@@ -46,6 +46,7 @@ Web project:
 
 API project:
 
+- `APP_ENV`: `production`.
 - `DATABASE_URL`: managed production Postgres connection string.
 - `LLM_PROVIDER`: hosted provider for production traffic.
 - `DEFAULT_MODEL`: production default model.
@@ -56,11 +57,11 @@ Rules:
 
 - Do not commit production secrets.
 - Keep `.env.example` as a non-secret template only.
-- Confirm preview and production environments have the correct values.
+- Confirm production environments have the correct values.
 
 ## Required Application Changes
 
-- Make API CORS environment-driven so production web and preview URLs can call the API.
+- Make API CORS environment-driven so the production web URL can call the API, with only the approved single local frontend port allowed for development.
 - Confirm the FastAPI entrypoint works with Vercel's Python runtime from `apps/api`.
 - Confirm the frontend reads the production API URL from `NEXT_PUBLIC_API_BASE_URL`.
 - Replace local schema bootstrapping with a production-safe migration or release step before storing real user data.
@@ -73,21 +74,17 @@ Rules:
   - `uv --directory apps/api run python -m compileall app`
   - `pnpm.cmd --dir apps/web lint`
   - `pnpm.cmd --dir apps/web build`
-- Deploy API preview:
+- Deploy API production:
   - Link the API Vercel project.
   - Add API environment variables.
-  - Run `vercel deploy` from the API project root.
-  - Smoke test `/` and `/health`.
-- Deploy API production:
   - Run `vercel deploy --prod` from the API project root.
+  - Smoke test `/` and `/health`.
   - Record the production API URL.
-- Deploy web preview:
+- Deploy web production:
   - Link the web Vercel project.
   - Set `NEXT_PUBLIC_API_BASE_URL` to the production API URL.
-  - Run `vercel deploy` from the web project root.
-  - Test the full app workflow against the production API.
-- Deploy web production:
   - Run `vercel deploy --prod` from the web project root.
+  - Test the full app workflow against the production API.
   - Attach the public production domain.
   - Confirm HTTPS.
 
@@ -101,6 +98,6 @@ Rules:
 - [ ] Prompt save and library flows work in production.
 - [ ] Profile refresh works in production.
 - [ ] Import create, preview, reprocess, and delete flows work in production.
-- [ ] CORS allows only intended production, preview, and approved local origins.
+- [ ] CORS allows only the intended production web origin and approved single local development frontend origin.
 - [ ] Production logs are clean after smoke testing.
 - [ ] Deployment URLs, environment variable names, project IDs, and rollback notes are recorded in `execution-reports/`.

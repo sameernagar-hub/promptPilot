@@ -45,7 +45,7 @@ Phase 14 workspace behavior:
 - Delete removes the active backend session data after confirmation.
 - The PromptPilot logo links back to `/`.
 - Generated prompt metrics stay secondary behind collapsed evaluation details.
-- Evaluation details expose score breakdowns, platform-fit ratings, modification audit trails, skipped-question assumptions, optimization paths, recommended actions, and scorer metadata.
+- Evaluation details expose score breakdowns, platform-fit ratings, modification audit trails, skipped-question assumptions, matched rules, trait alignment, optimization paths, recommended actions, and scorer metadata.
 - Guardrail-blocked requests display a short boundary message and a safe redirect instead of prompt variants.
 - Shared header/footer framing is stable across workspace, onboarding, profile, imports, library, and settings.
 - The `/profile` page includes low-profile export and derived-profile reset controls.
@@ -57,7 +57,7 @@ Verification:
 ```powershell
 pnpm.cmd --dir apps/web lint
 pnpm.cmd --dir apps/web build
-pnpm.cmd --dir apps/web start --hostname 127.0.0.1 --port 3001
+pnpm.cmd --dir apps/web start
 ```
 
-The production smoke URL is `http://127.0.0.1:3001`. The API must allow this origin through `ALLOWED_ORIGINS` when testing the built app locally.
+Local development and local production-build smoke checks both use the frontend port `3000`; stop the dev server before running `pnpm.cmd --dir apps/web start`. The API should only allow `http://localhost:3000` and `http://127.0.0.1:3000` for local CORS.

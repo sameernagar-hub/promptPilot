@@ -33,12 +33,14 @@ OLLAMA_SCORING_KEYS = [
 
 STRATEGY_PRIORITY = {
     "recommended_prompt": 0,
-    "safety_first": 1,
-    "diagnostic": 2,
-    "questions_first": 3,
-    "beginner_step_by_step": 4,
-    "expert_consultant": 5,
-    "comparison": 6,
+    "builder_plan": 1,
+    "learning_explainer": 2,
+    "comparison": 3,
+    "safety_first": 4,
+    "diagnostic": 5,
+    "questions_first": 6,
+    "beginner_step_by_step": 7,
+    "expert_consultant": 8,
 }
 
 PLATFORM_TERMS = {
@@ -144,6 +146,7 @@ def score_prompt_variants(
             settings,
             missing_context_count=missing_context_count,
             recommendation_notes=notes,
+            session_profile=session_profile or {},
         )
         prompt.score_metadata = _score_metadata_for_prompt(
             problem=problem,
@@ -225,7 +228,10 @@ def _score_prompt(
         if is_safety_first or risk_bonus
         else (0.86 if "safety" in text or "source boundaries" in text else 0.74),
         "user_actionability": 0.94
-        if "recommended next actions" in text or "next actions" in text
+        if "recommended next actions" in text
+        or "step-by-step plan" in text
+        or "materials" in text
+        or "next actions" in text
         else (0.86 if "plan" in text or "checklist" in text else 0.72),
     }
     if is_recommended:
@@ -302,9 +308,11 @@ def _explanation_for_prompt(
     settings: PromptSettings,
     missing_context_count: int,
     recommendation_notes: list[str],
+    session_profile: dict[str, Any],
 ) -> str:
+    display_name = str(session_profile.get("display_name") or "").strip()
     notes = [
-        f"{_labelize(settings.target_platform)} platform",
+        f"{_platform_label(settings.target_platform)} platform",
         f"{settings.format.replace('_', ' ')} format",
         f"{settings.tone.replace('_', ' ')} tone",
         f"{settings.detail_level.replace('_', ' ')} detail",
@@ -313,10 +321,10 @@ def _explanation_for_prompt(
     if missing_context_count:
         notes.append(f"{missing_context_count} explicit assumptions")
     note_text = "; ".join(dict.fromkeys(notes))
+    owner = f" for {display_name}" if display_name else ""
     return (
-        f"This {prompt.strategy.replace('_', ' ')} draft was shaped by {note_text}. "
-        "The score summarizes contract completeness, assumption handling, platform fit, "
-        "safety, and next-step usefulness."
+        f"This {prompt.strategy.replace('_', ' ')} draft{owner} turns the request into a "
+        f"platform-ready prompt contract shaped by {note_text}."
     )
 
 
@@ -339,16 +347,17 @@ def _score_metadata_for_prompt(
         for item in assumption_sources
         if item.get("assumption")
     ]
-    display_name = session_profile.get("display_name")
-    platform_label = _labelize(str(session_profile.get("primary_ai_platform") or target_platform))
+    display_name = str(session_profile.get("display_name") or "").strip()
+    platform_label = _platform_label(str(session_profile.get("primary_ai_platform") or target_platform))
     return {
         "platform_fit_rating": platform_breakdown.get(target_platform)
         or platform_breakdown.get("generic"),
         "platform_fit_breakdown": platform_breakdown,
-        "recommendation_summary": (
-            f"Prepared for {platform_label}"
-            if display_name
-            else f"Prepared for {_labelize(target_platform)}"
+        "recommendation_summary": _recommendation_summary(
+            display_name=display_name,
+            platform_label=platform_label,
+            target_platform=target_platform,
+            assumption_count=len(assumption_notes),
         ),
         "why_this_variant": _why_this_variant(prompt, settings, assumption_notes),
         "assumption_notes": assumption_notes,
@@ -393,6 +402,25 @@ def _why_this_variant(
     )
 
 
+def _recommendation_summary(
+    display_name: str,
+    platform_label: str,
+    target_platform: str,
+    assumption_count: int,
+) -> str:
+    behavior = PLATFORM_BEHAVIOR_SUMMARIES.get(
+        target_platform,
+        PLATFORM_BEHAVIOR_SUMMARIES["generic"],
+    )
+    owner = f"{display_name}'s " if display_name else ""
+    assumption_note = (
+        f" with {assumption_count} visible assumptions"
+        if assumption_count
+        else " with no major missing-context assumptions"
+    )
+    return f"{owner}{platform_label}-ready prompt, tuned for {behavior}{assumption_note}."
+
+
 def _modification_audit_trail(
     problem: str,
     settings: PromptSettings,
@@ -420,7 +448,7 @@ def _modification_audit_trail(
             "id": "platform_fit",
             "label": "Shaped for platform fit",
             "reason": (
-                f"The prompt was optimized for {_labelize(settings.target_platform)}: "
+                f"The prompt was optimized for {_platform_label(settings.target_platform)}: "
                 f"{PLATFORM_BEHAVIOR_SUMMARIES.get(settings.target_platform, PLATFORM_BEHAVIOR_SUMMARIES['generic'])}."
             ),
             "source": "platform_settings",
@@ -540,7 +568,7 @@ def _optimization_paths(
         },
         {
             "id": "platform_shaping",
-            "label": f"{_labelize(settings.target_platform)} shaping",
+            "label": f"{_platform_label(settings.target_platform)} shaping",
             "detail": PLATFORM_BEHAVIOR_SUMMARIES.get(
                 settings.target_platform,
                 PLATFORM_BEHAVIOR_SUMMARIES["generic"],
@@ -589,7 +617,7 @@ def _recommended_actions(
         actions.append(
             {
                 "id": "answer_missing_context",
-                "label": "[+] Answer Missing Context",
+                "label": "Answer Missing Context",
                 "impact": "Reduces assumption risk and improves specificity.",
                 "priority": "high",
             }
@@ -598,7 +626,7 @@ def _recommended_actions(
         actions.append(
             {
                 "id": "add_source_constraints",
-                "label": "[+] Add Source Constraints",
+                "label": "Add Source Constraints",
                 "impact": "Can improve evidence and platform fit for research-heavy prompts.",
                 "priority": "medium",
             }
@@ -607,7 +635,7 @@ def _recommended_actions(
         actions.append(
             {
                 "id": "add_audience_detail",
-                "label": "[+] Add Audience Detail",
+                "label": "Add Audience Detail",
                 "impact": "Improves tone, depth, examples, and success criteria.",
                 "priority": "medium",
             }
@@ -616,7 +644,7 @@ def _recommended_actions(
         actions.append(
             {
                 "id": "add_verification_commands",
-                "label": "[+] Add Verification Commands",
+                "label": "Add Verification Commands",
                 "impact": "Improves code-agent handoff and implementation confidence.",
                 "priority": "medium",
             }
@@ -688,6 +716,13 @@ def _base_scorer_metadata() -> dict[str, Any]:
         "model_provider": settings.llm_provider,
         "model": settings.default_model,
         "ollama_status": "not_used",
+        "pipeline_stage_sources": {
+            "classification": "deterministic_classifier",
+            "clarifying_questions": "intent_domain_question_generator",
+            "template_assembly": "intent_first_template_assembler",
+            "scoring": "ollama_when_available_with_deterministic_fallback",
+            "run_prompt": "ollama_when_available",
+        },
     }
 
 
@@ -808,3 +843,19 @@ def _classification_dict(
 
 def _labelize(value: str) -> str:
     return value.replace("_", " ").title()
+
+
+def _platform_label(value: str) -> str:
+    labels = {
+        "chatgpt": "ChatGPT",
+        "codex": "Codex",
+        "claude": "Claude",
+        "gemini": "Gemini",
+        "cursor": "Cursor",
+        "grok": "Grok",
+        "perplexity": "Perplexity",
+        "copilot": "Copilot",
+        "generic": "Generic",
+        "other": "Other AI",
+    }
+    return labels.get(value, _labelize(value))

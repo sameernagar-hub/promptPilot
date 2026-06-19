@@ -153,6 +153,7 @@ export type PipelineResponse = {
   assumptions: string[];
   revisions: PromptRevision[];
   timeline: string[];
+  stage_timings_ms: Record<string, number>;
   guardrail_status: "passed" | "blocked";
   guardrail_message: string | null;
   safe_redirect: string | null;
@@ -455,12 +456,16 @@ export const defaultSettings: PromptSettings = {
 };
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  (process.env.NODE_ENV === "development" ? "http://127.0.0.1:8000" : "");
 
 async function request<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  if (!API_BASE_URL) {
+    throw new Error("NEXT_PUBLIC_API_BASE_URL is required outside local development");
+  }
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {

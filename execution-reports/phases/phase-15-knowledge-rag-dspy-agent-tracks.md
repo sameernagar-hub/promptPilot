@@ -6,7 +6,19 @@ Prepare PromptPilot for Phase 16 Vercel deployment by cleaning the codebase, sim
 
 ## Status
 
-Not started.
+In progress.
+
+## Execution Progress
+
+- Single-port cleanup is complete: local web uses port `3000`, local API uses port `8000`, and default docs/config no longer use an extra preview smoke port.
+- Dashboard scoring-output polish is complete for the main workspace:
+  - default prompt header shows platform-readiness text instead of a raw numeric score
+  - backend explanations are product-facing and session-aware
+  - recommended micro-actions render as a compact optimization HUD
+  - score breakdowns, platform-fit details, modification audit trails, assumptions, rules matched, trait alignment, optimization paths, and scorer status stay behind expandable evaluation details
+- Production environment hardening has started:
+  - API runtime rejects production startup when `DATABASE_URL`, `LLM_PROVIDER`, or `ALLOWED_ORIGINS` still point at local-only services
+  - frontend API calls require `NEXT_PUBLIC_API_BASE_URL` outside local development
 
 ## Codebase Cleanup
 
@@ -17,6 +29,16 @@ Not started.
 - Make sure no production code depends on local-only services such as `localhost`, local Docker, or local Ollama, while preserving local Ollama as a documented development evaluator from Phase 14.
 - Ensure the app can run from a clean install using documented commands and environment variables.
 - Keep the implementation minimal by removing unused components, dead API routes, orphaned helpers, stale constants, and old UI copy.
+
+## Local Port and Deployment Simplification
+
+- Keep exactly one local frontend port and one local API port for the full project:
+  - Frontend: `http://localhost:3000` or `http://127.0.0.1:3000`.
+  - API: `http://localhost:8000` or `http://127.0.0.1:8000`.
+- Remove extra preview smoke ports from local docs, environment examples, default CORS origins, and startup scripts.
+- Use the same frontend port for dev and local production-build smoke checks; stop the dev server before running `next start`.
+- Keep Vercel deployment docs production-first: deploy final API and final web projects with production environment variables, not a separate preview-port workflow.
+- CORS should allow only the single local frontend port during development plus the final production web origin during deployment.
 
 ## README and Documentation Cleanup
 
@@ -104,19 +126,21 @@ Not started.
 ## Verification
 
 - [ ] Codebase cleanup removes stale local-only artifacts, unused files, obsolete UI copy, and production-blocking assumptions.
-- [ ] `README.md`, `apps/api/README.md`, and `apps/web/README.md` accurately explain architecture, setup, functionality, sessions, guardrails, live evaluation, scorer metadata, dashboard output, and deployment.
-- [ ] Current status, changelog, and phase docs do not conflict with the Phase 16 Vercel deployment plan.
+- [x] Local development uses only one frontend port, `3000`, and one API port, `8000`; no extra preview ports remain in default config or docs.
+- [x] Production runtime fails fast if Vercel/API environment values would point to localhost, local Docker, or local Ollama.
+- [x] `README.md`, `apps/api/README.md`, and `apps/web/README.md` accurately explain architecture, setup, functionality, sessions, guardrails, live evaluation, scorer metadata, dashboard output, and deployment.
+- [x] Current status, changelog, and phase docs do not conflict with the Phase 16 Vercel deployment plan.
 - [ ] The app remains minimal, responsive, and readable on mobile, tablet, and desktop.
-- [ ] The first post-execution view is zero-clutter and keeps primary focus on the recommended prompt output.
+- [x] The first post-execution view is zero-clutter and keeps primary focus on the recommended prompt output.
 - [ ] Session state sticks until the user explicitly ends it.
 - [ ] No seeded demo examples or precreated user data appear in a new production session.
-- [ ] All user-facing interpreted outputs are AI-formatted and personalized.
-- [ ] Scoring explanations, platform-fit ratings, modification audit trails, platform-fit breakdowns, and recommended actions are formatted for frontend display.
-- [ ] Skipped clarifying questions visibly map to injected assumptions in the advanced details UI.
-- [ ] Rules matched, user-trait alignment, and optimization paths are available behind progressive disclosure without exposing raw internals.
-- [ ] The optimization HUD presents concrete micro-actions instead of generic explanatory text blocks.
-- [ ] Recommended variants explain why they fit the selected target platform, including Claude versus OpenAI/ChatGPT-style differences when relevant.
-- [ ] Dashboard copy translates scores into actionable user feedback instead of exposing raw evaluator internals.
+- [x] All user-facing interpreted outputs are AI-formatted and personalized.
+- [x] Scoring explanations, platform-fit ratings, modification audit trails, platform-fit breakdowns, and recommended actions are formatted for frontend display.
+- [x] Skipped clarifying questions visibly map to injected assumptions in the advanced details UI.
+- [x] Rules matched, user-trait alignment, and optimization paths are available behind progressive disclosure without exposing raw internals.
+- [x] The optimization HUD presents concrete micro-actions instead of generic explanatory text blocks.
+- [x] Recommended variants explain why they fit the selected target platform, including Claude versus OpenAI/ChatGPT-style differences when relevant.
+- [x] Dashboard copy translates scores into actionable user feedback instead of exposing raw evaluator internals.
 - [ ] Output guardrails prevent raw JSON, chain-of-thought, unvalidated evaluator text, raw `Problem: ...` echoes, and confusing score dumps from appearing in the UI.
 - [ ] Knowledge sources are licensed and tracked.
 - [ ] RAG outputs are synthesized rather than copied.

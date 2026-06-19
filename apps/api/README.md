@@ -2,10 +2,21 @@
 
 FastAPI service for the PromptPilot prompt engine.
 
+Local API environment values:
+
+- `APP_ENV=development`
+- `DATABASE_URL=postgresql://prompt_engine:prompt_engine@localhost:5432/prompt_engine`
+- `LLM_PROVIDER=ollama`
+- `OLLAMA_BASE_URL=http://localhost:11434`
+- `DEFAULT_MODEL=ollama/llama3.1:8b`
+- `ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000`
+
+Production must set `APP_ENV=production`, a managed `DATABASE_URL`, a hosted `LLM_PROVIDER`, and the final production web origin in `ALLOWED_ORIGINS`. Production startup fails fast if local database, local Ollama, or localhost CORS values are used.
+
 Run locally from the repository root:
 
 ```powershell
-uv --directory apps/api run uvicorn app.main:app --reload
+uv --directory apps/api run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 Health check:
@@ -157,7 +168,7 @@ Invoke-RestMethod `
 - `DELETE /profile/observations/{observation_id}` hides observations through refresh-safe overrides.
 - `GET /profile/export?format=markdown|json` exports derived profile data.
 - `DELETE /profile/data` clears derived profile traits, signals, platform preferences, and observation overrides while preserving source sessions/imports.
-- `ALLOWED_ORIGINS` configures CORS for local dev, local production checks, and hosted frontend origins.
+- `ALLOWED_ORIGINS` configures CORS for the single local frontend port and the final hosted frontend origin.
 
 Phase 14 session onboarding, guardrails, live evaluation, privacy, and audit behavior:
 

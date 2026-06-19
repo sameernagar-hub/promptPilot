@@ -1,6 +1,6 @@
 # Current Status
 
-PromptPilot has completed Phase 14 session onboarding, live evaluation, privacy, and production readiness. Phase 15 is next, focused on codebase cleanup, AI-formatted scoring output review, knowledge support, RAG, DSPy, agent-track support systems, minimalist UX polish, documentation cleanup, and pre-deploy hardening.
+PromptPilot has completed Phase 14 session onboarding, live evaluation, privacy, and production readiness. Phase 15 is in progress, focused on codebase cleanup, AI-formatted scoring output review, knowledge support, RAG, DSPy, agent-track support systems, minimalist UX polish, documentation cleanup, and pre-deploy hardening.
 
 ## Verified Workspace State
 
@@ -34,7 +34,7 @@ PromptPilot has completed Phase 14 session onboarding, live evaluation, privacy,
 - Profile Q&A endpoints answer grounded questions from stored traits, signals, sessions, imports, and revisions.
 - Profile insights summarize common missing details, preferences, frequent domains, platform advice, and recent revisions.
 - Users can correct or hide profile observations, with overrides preserved across profile refreshes.
-- API CORS is configurable through `ALLOWED_ORIGINS`.
+- API CORS is configurable through `ALLOWED_ORIGINS`, with the default local setup limited to the frontend port `3000`.
 - Phase 4 database tables exist in local Postgres.
 - Shared package exists at `packages/shared`.
 - Phase 2 Docker Compose infrastructure exists at `infra/docker-compose.yml`.
@@ -55,7 +55,10 @@ PromptPilot has completed Phase 14 session onboarding, live evaluation, privacy,
 - Shared header/footer framing is stable across workspace, onboarding, profile, imports, library, and settings routes.
 - Phase 14 now includes session onboarding, name and AI-platform selection, rules acceptance, clean-slate sessions, personalization, strict guardrails, live `run-pipeline` evaluation using local Ollama-backed scoring, promptfoo regression coverage, privacy-critical tests, export/delete verification, audit logs, and Phase 15-ready metadata for modification audit trails, skipped-question assumption sources, platform-fit breakdowns, matched rules, user-trait alignment, and optimization paths.
 - Phase 15 now covers codebase cleanup, minimal UX polish, README/documentation cleanup, AI-formatted scoring explanations, explicit backend value exposure, platform-fit granularity, progressive disclosure guardrails, a low-profile optimization HUD, session continuity checks, and final pre-deploy hardening.
-- A final Vercel production deployment phase now exists as Phase 16.
+- A final Vercel production deployment phase now exists as Phase 16, with production-first deploy steps and no default preview-port workflow.
+- Local development has one frontend port (`3000`) and one API port (`8000`) across scripts, environment examples, API CORS defaults, and docs.
+- Phase 15 workspace output polish now keeps raw numeric scores inside expanded evaluation details, shows platform-readiness summary copy in the prompt header, renders recommended micro-actions as a compact optimization HUD, and includes rules matched, trait alignment, optimization paths, platform fit, and scorer status behind progressive disclosure.
+- Phase 15 production hardening now rejects production API startup when local database, local Ollama, or localhost CORS values are still configured, and the frontend requires `NEXT_PUBLIC_API_BASE_URL` outside local development.
 - Git repository exists and tracks `origin/main`.
 
 ## Verified Local Tool State
@@ -78,15 +81,14 @@ PromptPilot has completed Phase 14 session onboarding, live evaluation, privacy,
 
 ## Recommended Next Decision
 
-Begin Phase 15: Codebase Cleanup, AI-Formatted Outputs, Knowledge Support, and Pre-Deploy Polish.
+Continue executing Phase 15: Codebase Cleanup, AI-Formatted Outputs, Knowledge Support, and Pre-Deploy Polish.
 
-Phase 15 is reserved for cleanup, documentation, minimal UX polish, AI-formatted scoring output review, explicit modification audit trails, platform-fit explanation granularity, progressive disclosure guardrails, actionable micro-optimization recommendations, RAG/DSPy/agent support systems, and pre-deploy hardening. Phase 16 is reserved for installing the Vercel CLI, configuring Vercel projects and production environment variables, and deploying the local Next.js frontend and local FastAPI backend directly to Vercel.
+The first Phase 15 cleanup slice standardizes the project to one local frontend port and one local API port, removes the extra local preview smoke port, updates docs, and keeps Phase 16 production-first. The second slice polishes dashboard-ready scoring output and progressive disclosure. The third slice adds production environment fail-fast checks. Remaining Phase 15 work covers broader codebase cleanup, responsive visual QA, RAG/DSPy/agent support-system hardening, and final pre-deploy checks.
 
 ## Verified Local Startup URLs
 
 - Web: `http://127.0.0.1:3000`
 - API: `http://127.0.0.1:8000`
-- Production web smoke: `http://127.0.0.1:3001`
 
 ## Phase 2 Verification State
 
@@ -252,7 +254,7 @@ Phase 15 is reserved for cleanup, documentation, minimal UX polish, AI-formatted
 - `profile_observation_overrides` stores correction and hidden-observation state.
 - `/profile` now includes Q&A, suggested questions, insight sections, trait correction, and hide controls.
 - Mobile header and suggested-question controls wrap cleanly at narrow widths.
-- API CORS supports `ALLOWED_ORIGINS` and includes local dev and local production ports by default.
+- API CORS supports `ALLOWED_ORIGINS` and defaults to the single local frontend port `3000`.
 - `uv --directory apps/api run python -m compileall app` passes.
 - `pnpm.cmd --dir apps/web lint` passes.
 - `pnpm.cmd --dir apps/web build` passes.

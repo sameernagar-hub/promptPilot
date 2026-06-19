@@ -7,7 +7,7 @@
     "dev:web": "pnpm --dir apps/web dev",
     "build:web": "pnpm --dir apps/web build",
     "lint:web": "pnpm --dir apps/web lint",
-    "dev:api": "uv --directory apps/api run uvicorn app.main:app --reload",
+    "dev:api": "uv --directory apps/api run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload",
     "lint": "pnpm lint:web"
   }
 }

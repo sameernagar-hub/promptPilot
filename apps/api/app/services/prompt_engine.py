@@ -1,3 +1,9 @@
+import re
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from difflib import SequenceMatcher
+from time import perf_counter
+
 from app.db import store
 from app.models import ProblemSession, PromptRevision, PromptVariant
 from app.schemas import (
@@ -30,16 +36,20 @@ def needs_clarification(
     session: ProblemSession,
     classification: ClassificationResponse,
     profile_traits: list[dict] | None = None,
+    questions: list[ClarifyingQuestion] | None = None,
 ) -> bool:
     if classification.needs_domain_confirmation and classification.domain_source == "detected":
         return True
-    required_question_ids = {
-        question.id
-        for question in generate_questions(
+    question_source = questions
+    if question_source is None:
+        question_source = generate_questions(
             session.raw_input,
             classification,
             profile_traits=profile_traits,
         )
+    required_question_ids = {
+        question.id
+        for question in question_source
         if question.required
     }
     handled_question_ids = {
@@ -59,15 +69,20 @@ def run_prompt_engine(
     mode: RefinementMode = "refinement",
 ) -> PromptEngineRunResponse:
     timeline: list[str] = []
-    guardrail = evaluate_guardrails(session.raw_input)
+    stage_timings_ms: dict[str, float] = {}
+
+    with _stage_timer(stage_timings_ms, "guardrails"):
+        guardrail = evaluate_guardrails(session.raw_input)
     if guardrail.blocked:
-        classification = classification_for_session(session)
-        session.detected_domain = classification.domain
-        session.detected_intent = classification.intent
-        session.risk_level = classification.risk_level
-        session.classification = classification.model_dump()
-        session.touch("guardrail_blocked")
-        session = store.upsert_session(session)
+        with _stage_timer(stage_timings_ms, "classification"):
+            classification = classification_for_session(session)
+        with _stage_timer(stage_timings_ms, "session_persistence"):
+            session.detected_domain = classification.domain
+            session.detected_intent = classification.intent
+            session.risk_level = classification.risk_level
+            session.classification = classification.model_dump()
+            session.touch("guardrail_blocked")
+            session = store.upsert_session(session)
         timeline.append("guardrail_blocked")
         return PromptEngineRunResponse(
             session_id=session.id,
@@ -80,46 +95,79 @@ def run_prompt_engine(
             assumptions=[],
             revisions=_revision_responses(session.id),
             timeline=timeline,
+            stage_timings_ms=stage_timings_ms,
             guardrail_status="blocked",
             guardrail_message=guardrail.message,
             safe_redirect=guardrail.safe_redirect,
         )
 
     session.user_settings = settings.model_dump()
-    classification = classification_for_session(session)
-    session.detected_domain = classification.domain
-    session.detected_intent = classification.intent
-    session.risk_level = classification.risk_level
-    session.classification = classification.model_dump()
-    session.touch("classified")
-    session = store.upsert_session(session)
-    _persist_platform_preference(settings)
+    with _stage_timer(stage_timings_ms, "classification_profile_parallel"):
+        classification_future = None
+        profile_future = None
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            classification_future = executor.submit(
+                _timed_call,
+                "classification",
+                classification_for_session,
+                session,
+            )
+            profile_future = executor.submit(
+                _timed_call,
+                "profile_lookup",
+                _profile_traits_for_refinement,
+            )
+            _, classification, classification_ms = classification_future.result()
+            _, profile_traits, profile_ms = profile_future.result()
+        stage_timings_ms["classification"] = classification_ms
+        stage_timings_ms["profile_lookup"] = profile_ms
+
+    with _stage_timer(stage_timings_ms, "session_persistence"):
+        session.detected_domain = classification.domain
+        session.detected_intent = classification.intent
+        session.risk_level = classification.risk_level
+        session.classification = classification.model_dump()
+        session.touch("classified")
+        session = store.upsert_session(session)
+        _persist_platform_preference(settings)
     timeline.append("classified")
 
-    profile_traits = _profile_traits_for_refinement()
-    questions = generate_questions(
-        session.raw_input,
-        classification,
-        profile_traits=profile_traits,
-    )
-    session = store.replace_session_questions(session, questions)
+    with _stage_timer(stage_timings_ms, "question_generation"):
+        questions = generate_questions(
+            session.raw_input,
+            classification,
+            profile_traits=profile_traits,
+        )
+    with _stage_timer(stage_timings_ms, "question_persistence"):
+        session = store.replace_session_questions(session, questions)
     timeline.append("questions_ready")
 
     if answers:
-        session = store.record_answers(session, answers)
+        with _stage_timer(stage_timings_ms, "answer_validation"):
+            answers_to_record, discarded_answer_ids = _filter_low_information_answers(
+                session,
+                answers,
+            )
+        with _stage_timer(stage_timings_ms, "answer_persistence"):
+            session = store.record_answers(session, answers_to_record)
         timeline.append("answers_recorded")
+        if discarded_answer_ids:
+            timeline.append(f"low_information_answers_discarded:{len(discarded_answer_ids)}")
 
-    clarify_needed = needs_clarification(
-        session,
-        classification,
-        profile_traits=profile_traits,
-    )
-    assumption_sources = _assumption_sources_for_session(session)
-    assumptions = [item["assumption"] for item in assumption_sources]
+    with _stage_timer(stage_timings_ms, "clarification_check"):
+        clarify_needed = needs_clarification(
+            session,
+            classification,
+            profile_traits=profile_traits,
+            questions=questions,
+        )
+        assumption_sources = _assumption_sources_for_session(session)
+        assumptions = [item["assumption"] for item in assumption_sources]
 
     if mode == "refinement" and clarify_needed:
-        session.touch("clarification_pending")
-        session = store.upsert_session(session)
+        with _stage_timer(stage_timings_ms, "session_persistence_clarification"):
+            session.touch("clarification_pending")
+            session = store.upsert_session(session)
         timeline.append("clarification_pending")
         return PromptEngineRunResponse(
             session_id=session.id,
@@ -132,30 +180,35 @@ def run_prompt_engine(
             assumptions=assumptions,
             revisions=_revision_responses(session.id),
             timeline=timeline,
+            stage_timings_ms=stage_timings_ms,
             guardrail_status="passed",
         )
 
-    strategies = choose_prompt_strategies(session, settings, clarify_needed)
-    previous_prompt = _previous_recommended_prompt(session)
-    prompts = generate_prompt_variants(session, settings, strategies=strategies)
-    prompts = store.replace_session_prompts(session, prompts)
+    with _stage_timer(stage_timings_ms, "template_assembly"):
+        strategies = choose_prompt_strategies(session, settings, clarify_needed)
+        previous_prompt = _previous_recommended_prompt(session)
+        prompts = generate_prompt_variants(session, settings, strategies=strategies)
+    with _stage_timer(stage_timings_ms, "prompt_persistence"):
+        prompts = store.replace_session_prompts(session, prompts)
     timeline.append("prompts_generated")
 
-    scored = score_prompt_variants(
-        problem=session.raw_input,
-        prompts=prompts,
-        settings=settings,
-        risk_level=session.risk_level,
-        needs_clarification=clarify_needed,
-        missing_context_count=len(assumptions),
-        recommendation_notes=_recommendation_notes(session, profile_traits),
-        classification=classification,
-        assumption_sources=assumption_sources,
-        profile_traits=profile_traits,
-        session_profile=_session_profile_metadata(session),
-    )
-    for prompt in scored:
-        store.upsert_prompt(prompt)
+    with _stage_timer(stage_timings_ms, "scoring"):
+        scored = score_prompt_variants(
+            problem=session.raw_input,
+            prompts=prompts,
+            settings=settings,
+            risk_level=session.risk_level,
+            needs_clarification=clarify_needed,
+            missing_context_count=len(assumptions),
+            recommendation_notes=_recommendation_notes(session, profile_traits),
+            classification=classification,
+            assumption_sources=assumption_sources,
+            profile_traits=profile_traits,
+            session_profile=_session_profile_metadata(session),
+        )
+    with _stage_timer(stage_timings_ms, "score_persistence"):
+        for prompt in scored:
+            store.upsert_prompt(prompt)
     timeline.append("prompts_scored")
 
     recommended = next(
@@ -167,42 +220,45 @@ def run_prompt_engine(
         scored[0] if scored else None,
     )
     if recommended_prompt:
-        revision = store.record_prompt_revision(
-            PromptRevision(
-                session_id=session.id,
-                prompt_variant_id=recommended_prompt.id,
-                revision_type="refinement" if mode == "refinement" else "quick_generation",
-                before_text=previous_prompt.prompt_text if previous_prompt else None,
-                after_text=recommended_prompt.prompt_text,
-                rationale=_revision_rationale(session, profile_traits, assumptions),
-                revision_metadata={
-                    "mode": mode,
-                    "settings": settings.model_dump(),
-                    "classification": classification.model_dump(),
-                    "answered_question_ids": [
-                        question.question_key
-                        for question in session.question_rows
-                        if question.answer_state == "answered"
-                    ],
-                    "skipped_question_ids": [
-                        question.question_key
-                        for question in session.question_rows
-                        if question.answer_state == "skipped"
-                    ],
-                    "assumptions": assumptions,
-                    "assumption_sources": assumption_sources,
-                    "profile_traits": _profile_trait_metadata(profile_traits),
-                    "session_profile": _session_profile_metadata(session),
-                    "scorer_metadata": recommended_prompt.scorer_metadata,
-                    "modification_audit_trail": recommended_prompt.modification_audit_trail,
-                    "optimization_paths": recommended_prompt.optimization_paths,
-                },
+        with _stage_timer(stage_timings_ms, "revision_persistence"):
+            revision = store.record_prompt_revision(
+                PromptRevision(
+                    session_id=session.id,
+                    prompt_variant_id=recommended_prompt.id,
+                    revision_type="refinement" if mode == "refinement" else "quick_generation",
+                    before_text=previous_prompt.prompt_text if previous_prompt else None,
+                    after_text=recommended_prompt.prompt_text,
+                    rationale=_revision_rationale(session, profile_traits, assumptions),
+                    revision_metadata={
+                        "mode": mode,
+                        "settings": settings.model_dump(),
+                        "classification": classification.model_dump(),
+                        "answered_question_ids": [
+                            question.question_key
+                            for question in session.question_rows
+                            if question.answer_state == "answered"
+                        ],
+                        "skipped_question_ids": [
+                            question.question_key
+                            for question in session.question_rows
+                            if question.answer_state == "skipped"
+                        ],
+                        "assumptions": assumptions,
+                        "assumption_sources": assumption_sources,
+                        "profile_traits": _profile_trait_metadata(profile_traits),
+                        "session_profile": _session_profile_metadata(session),
+                        "scorer_metadata": recommended_prompt.scorer_metadata,
+                        "modification_audit_trail": recommended_prompt.modification_audit_trail,
+                        "optimization_paths": recommended_prompt.optimization_paths,
+                        "stage_timings_ms": stage_timings_ms,
+                    },
+                )
             )
-        )
         timeline.append(f"revision_stored:{revision.id}")
 
-    session.touch("ready")
-    store.upsert_session(session)
+    with _stage_timer(stage_timings_ms, "session_ready_persistence"):
+        session.touch("ready")
+        store.upsert_session(session)
     timeline.append("ready")
 
     return PromptEngineRunResponse(
@@ -216,8 +272,107 @@ def run_prompt_engine(
         assumptions=assumptions,
         revisions=_revision_responses(session.id),
         timeline=timeline,
+        stage_timings_ms=stage_timings_ms,
         guardrail_status="passed",
     )
+
+
+@contextmanager
+def _stage_timer(timings: dict[str, float], stage: str):
+    started_at = perf_counter()
+    try:
+        yield
+    finally:
+        timings[stage] = round((perf_counter() - started_at) * 1000, 2)
+
+
+def _timed_call(stage: str, function, *args):
+    started_at = perf_counter()
+    value = function(*args)
+    return stage, value, round((perf_counter() - started_at) * 1000, 2)
+
+
+def _filter_low_information_answers(
+    session: ProblemSession,
+    answers: list[AnswerItem],
+) -> tuple[list[AnswerItem], list[str]]:
+    question_text = {
+        question.question_key: question.question
+        for question in session.question_rows
+    }
+    filtered: list[AnswerItem] = []
+    discarded_ids: list[str] = []
+    for answer in answers:
+        if (
+            answer.state != "answered"
+            or not answer.answer
+            or not _is_low_information_answer(
+                answer.answer,
+                original=session.raw_input,
+                question=question_text.get(answer.question_id, answer.question_id),
+            )
+        ):
+            filtered.append(answer)
+            continue
+        discarded_ids.append(answer.question_id)
+        filtered.append(
+            answer.model_copy(update={"answer": None, "state": "unanswered"})
+        )
+    return filtered, discarded_ids
+
+
+def _is_low_information_answer(answer: str, original: str, question: str) -> bool:
+    normalized_answer = _normalized_text(answer)
+    if len(normalized_answer) < 8:
+        return False
+    return max(
+        _text_similarity(normalized_answer, _normalized_text(original)),
+        _text_similarity(normalized_answer, _normalized_text(question)),
+    ) > 0.70
+
+
+def _text_similarity(left: str, right: str) -> float:
+    if not left or not right:
+        return 0.0
+    sequence_ratio = SequenceMatcher(None, left, right).ratio()
+    left_tokens = _content_tokens(left)
+    right_tokens = _content_tokens(right)
+    if len(left_tokens) < 3 or not right_tokens:
+        return sequence_ratio
+    overlap_ratio = len(left_tokens & right_tokens) / min(len(left_tokens), len(right_tokens))
+    return max(sequence_ratio, overlap_ratio)
+
+
+def _normalized_text(value: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", value.lower()))
+
+
+def _content_tokens(value: str) -> set[str]:
+    stopwords = {
+        "a",
+        "an",
+        "and",
+        "are",
+        "for",
+        "how",
+        "i",
+        "is",
+        "it",
+        "me",
+        "my",
+        "or",
+        "the",
+        "to",
+        "want",
+        "what",
+        "with",
+        "you",
+    }
+    return {
+        token
+        for token in value.split()
+        if len(token) > 2 and token not in stopwords
+    }
 
 
 def _questions_for_response(session: ProblemSession) -> list[ClarifyingQuestion]:

@@ -65,6 +65,8 @@ type SettingKey = keyof PromptSettings;
 type QuestionStates = Record<string, ClarifyingQuestionState>;
 
 const activeSessionStorageKey = "promptpilot.activeSessionProfile.v1";
+const alternateLocalHostname = "localhost";
+const canonicalLocalHostname = "127.0.0.1";
 
 const onboardingPlatforms: { value: SessionAiPlatform; label: string }[] = [
   { value: "chatgpt", label: "ChatGPT" },
@@ -121,6 +123,15 @@ const settingGroups: { title: string; keys: SettingKey[] }[] = [
     keys: ["length", "skill_level", "tone", "risk", "sources"],
   },
 ];
+
+const generationStages = [
+  { key: "session", label: "Creating session" },
+  { key: "classification", label: "Classifying intent" },
+  { key: "questions", label: "Preparing questions" },
+  { key: "assembly", label: "Assembling prompt" },
+  { key: "scoring", label: "Scoring variants" },
+  { key: "ready", label: "Rendering result" },
+] as const;
 
 const themeStyles: Record<
   ThemeName,
@@ -181,9 +192,7 @@ export function PromptWorkspace({
 }: WorkspaceProps) {
   const [theme, setTheme] = useState<ThemeName>("sage");
   const styles = themeStyles[theme];
-  const [activeSession, setActiveSession] = useState<ActiveSessionProfile | null>(() =>
-    loadActiveSessionProfile(),
-  );
+  const [activeSession, setActiveSession] = useState<ActiveSessionProfile | null>(null);
   const [problem, setProblem] = useState("");
   const [settings, setSettings] = useState<PromptSettings>(defaultSettings);
   const [refinementMode, setRefinementMode] = useState<RefinementMode>("refinement");
@@ -198,9 +207,40 @@ export function PromptWorkspace({
   const [status, setStatus] = useState("Idle");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [generationStageIndex, setGenerationStageIndex] = useState<number | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showAlternatives, setShowAlternatives] = useState(initialCompare);
   const [apiHealth, setApiHealth] = useState<"ok" | "degraded" | "offline">("offline");
+  const isGenerationLoading = loading && generationStageIndex !== null;
+
+  useEffect(() => {
+    if (window.location.hostname !== alternateLocalHostname) {
+      return;
+    }
+    const { protocol, port, pathname, search, hash } = window.location;
+    const targetUrl = `${protocol}//${canonicalLocalHostname}${port ? `:${port}` : ""}${pathname}${search}${hash}`;
+    window.location.replace(targetUrl);
+  }, []);
+
+  useEffect(() => {
+    if (initialSessionId || window.location.hostname === alternateLocalHostname) {
+      return;
+    }
+
+    const restoreTimer = window.setTimeout(() => {
+      const stored = loadActiveSessionProfile();
+      if (!stored) {
+        return;
+      }
+      setActiveSession(stored);
+      setSettings((current) => ({
+        ...current,
+        target_platform: platformToTarget(stored.primary_ai_platform),
+      }));
+    }, 0);
+
+    return () => window.clearTimeout(restoreTimer);
+  }, [initialSessionId]);
 
   useEffect(() => {
     getHealth()
@@ -223,6 +263,20 @@ export function PromptWorkspace({
         // Profile defaults are a convenience; the workspace can run without them.
       });
   }, [initialSessionId]);
+
+  useEffect(() => {
+    if (!isGenerationLoading) {
+      return;
+    }
+    const interval = window.setInterval(() => {
+      setGenerationStageIndex((current) =>
+        current === null
+          ? current
+          : Math.min(current + 1, generationStages.length - 1),
+      );
+    }, 1400);
+    return () => window.clearInterval(interval);
+  }, [isGenerationLoading]);
 
   useEffect(() => {
     if (!initialSessionId) {
@@ -326,6 +380,7 @@ export function PromptWorkspace({
     }
 
     setLoading(true);
+    setGenerationStageIndex(0);
     setError("");
     setRunOutput("");
     try {
@@ -333,6 +388,7 @@ export function PromptWorkspace({
       const session = shouldCreateSession
         ? await createSession(problem.trim(), settings, activeSession)
         : { id: sessionId };
+      setGenerationStageIndex(1);
       const submittedAnswers = shouldCreateSession ? {} : nextAnswers;
       const submittedStates = shouldCreateSession ? {} : nextQuestionStates;
       if (shouldCreateSession) {
@@ -348,12 +404,14 @@ export function PromptWorkspace({
         submittedStates,
         nextMode,
       );
+      setGenerationStageIndex(generationStages.length - 1);
       applyPipelineResult(result);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Generation failed");
       setStatus("Error");
     } finally {
       setLoading(false);
+      setGenerationStageIndex(null);
     }
   }
 
@@ -367,6 +425,7 @@ export function PromptWorkspace({
       return;
     }
     setLoading(true);
+    setGenerationStageIndex(1);
     setError("");
     try {
       const confirmed = await confirmDomain(sessionId, domain, accepted);
@@ -383,6 +442,7 @@ export function PromptWorkspace({
       setError(caught instanceof Error ? caught.message : "Domain update failed");
     } finally {
       setLoading(false);
+      setGenerationStageIndex(null);
     }
   }
 
@@ -527,13 +587,13 @@ export function PromptWorkspace({
         theme={theme}
         onThemeChange={setTheme}
         onStart={(profile) => {
-          saveActiveSessionProfile(profile);
+          const saved = saveActiveSessionProfile(profile);
           setActiveSession(profile);
           setSettings((current) => ({
             ...current,
             target_platform: platformToTarget(profile.primary_ai_platform),
           }));
-          setStatus("Session started");
+          setStatus(saved ? "Session started" : "Session started without local persistence");
         }}
       />
     );
@@ -542,7 +602,7 @@ export function PromptWorkspace({
   return (
     <main className={cn("min-h-screen", styles.page)}>
       <header className={cn("border-b", styles.header)}>
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
+        <div className="mx-auto flex max-w-[1500px] flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <Link
               href="/"
@@ -600,7 +660,7 @@ export function PromptWorkspace({
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-6xl gap-4 px-4 py-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <div className="mx-auto grid max-w-[1500px] gap-4 px-4 py-4 xl:grid-cols-[minmax(320px,0.75fr)_minmax(0,1.45fr)]">
         <section className="space-y-4">
           <div className={cardClass(styles)}>
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -643,6 +703,12 @@ export function PromptWorkspace({
               <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
                 {error}
               </p>
+            ) : null}
+            {isGenerationLoading ? (
+              <PipelineProgress
+                activeIndex={generationStageIndex ?? 0}
+                styles={styles}
+              />
             ) : null}
           </div>
 
@@ -704,6 +770,7 @@ export function PromptWorkspace({
               onRun={runSelectedPrompt}
               onSave={saveSelectedPrompt}
               loading={loading}
+              stageTimings={pipeline?.stage_timings_ms ?? {}}
             />
           )}
 
@@ -759,7 +826,7 @@ export function PromptWorkspace({
         </section>
       </div>
       <footer className={cn("border-t px-4 py-3 text-xs", styles.header, styles.subtle)}>
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2">
+        <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-2">
           <span>PromptPilot</span>
           <span>Local-first prompt refinement, scoring, and profile controls.</span>
         </div>
@@ -1103,6 +1170,7 @@ function RecommendedPrompt({
   onRun,
   onSave,
   loading,
+  stageTimings,
 }: {
   prompt?: PromptVariant;
   recommendedPromptId: string | null;
@@ -1111,6 +1179,7 @@ function RecommendedPrompt({
   onRun: () => void;
   onSave: () => void;
   loading: boolean;
+  stageTimings: Record<string, number>;
 }) {
   return (
     <div className={cardClass(styles)}>
@@ -1120,7 +1189,7 @@ function RecommendedPrompt({
             {prompt?.id === recommendedPromptId ? "Recommended Prompt" : "Selected Prompt"}
           </h2>
           <p className={cn("text-xs", styles.subtle)}>
-            {prompt?.score_total ? `${Math.round(prompt.score_total * 100)} score` : "Ready after generation"}
+            {prompt?.recommendation_summary ?? "Ready after generation"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1154,22 +1223,21 @@ function RecommendedPrompt({
               {prompt.explanation}
             </p>
           ) : null}
-          {prompt.recommended_actions.length ? (
-            <div className="mb-3 flex flex-wrap gap-2">
-              {prompt.recommended_actions.map((action) => (
-                <span
-                  key={action.id}
-                  className={cn("rounded-md border px-2 py-1 text-xs", styles.border)}
-                  title={action.impact}
-                >
-                  {action.label}
-                </span>
-              ))}
-            </div>
-          ) : null}
-          <pre className="whitespace-pre-wrap break-words text-sm leading-7">
-            {prompt.prompt_text}
-          </pre>
+          <OptimizationHud prompt={prompt} styles={styles} />
+          <PromptContractView prompt={prompt} styles={styles} />
+          <PipelineStageSummary timings={stageTimings} styles={styles} />
+          <details className={cn("mt-3 rounded-md border bg-white/50", styles.border)}>
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-medium">
+              <span className="flex items-center gap-2">
+                <ChevronDown className="size-3" />
+                Raw prompt text
+              </span>
+              <span className={styles.subtle}>{prompt.prompt_text.length} chars</span>
+            </summary>
+            <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap break-words border-t border-black/5 p-3 text-sm leading-7">
+              {prompt.prompt_text}
+            </pre>
+          </details>
           <EvaluationDetails prompt={prompt} styles={styles} />
         </div>
       ) : (
@@ -1177,6 +1245,234 @@ function RecommendedPrompt({
           No prompt generated yet.
         </div>
       )}
+    </div>
+  );
+}
+
+function PromptContractView({
+  prompt,
+  styles,
+}: {
+  prompt: PromptVariant;
+  styles: (typeof themeStyles)[ThemeName];
+}) {
+  const contract = useMemo(
+    () => parsePromptContract(prompt.prompt_text),
+    [prompt.prompt_text],
+  );
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 xl:grid-cols-[1.1fr_0.9fr]">
+        <PromptFieldPanel title="Request Shape" items={contract.overview} styles={styles} />
+        <PromptFieldPanel title="Platform Behavior" items={contract.behavior} styles={styles} />
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <PromptListPanel title="Constraints" items={contract.constraints} styles={styles} />
+        <PromptListPanel title="Assumptions" items={contract.assumptions} styles={styles} />
+      </div>
+      <div className="grid gap-3 xl:grid-cols-[0.9fr_1.1fr]">
+        <PromptListPanel title="Known Details" items={contract.knownDetails} styles={styles} />
+        <PromptListPanel title="Output Structure" items={contract.outputStructure} styles={styles} />
+      </div>
+      <PromptListPanel title="Follow-Up Behavior" items={contract.followUps} styles={styles} />
+      <details className={cn("rounded-md border bg-white/50", styles.border)}>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-medium">
+          <span className="flex items-center gap-2">
+            <ChevronDown className="size-3" />
+            Preferences
+          </span>
+          <span className={styles.subtle}>{contract.preferences.length} settings</span>
+        </summary>
+        <div className="flex flex-wrap gap-2 border-t border-black/5 p-3">
+          {contract.preferences.map((item) => (
+            <span
+              key={`${item.label}-${item.value}`}
+              className={cn("inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-1 text-xs", styles.border)}
+            >
+              <span className={styles.subtle}>{item.label}</span>
+              <span className="min-w-0 truncate font-medium">{item.value}</span>
+            </span>
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function PromptFieldPanel({
+  title,
+  items,
+  styles,
+}: {
+  title: string;
+  items: { label: string; value: string }[];
+  styles: (typeof themeStyles)[ThemeName];
+}) {
+  return (
+    <section className={cn("rounded-md border bg-white/50 p-3", styles.border)}>
+      <div className="mb-2 text-xs font-semibold uppercase tracking-normal">{title}</div>
+      <div className="grid gap-2">
+        {items.length ? (
+          items.map((item) => (
+            <div key={item.label} className="text-sm leading-5">
+              <div className={cn("text-[11px] font-medium uppercase tracking-normal", styles.subtle)}>
+                {item.label}
+              </div>
+              <div>{item.value}</div>
+            </div>
+          ))
+        ) : (
+          <p className={cn("text-sm", styles.subtle)}>None provided.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PromptListPanel({
+  title,
+  items,
+  styles,
+}: {
+  title: string;
+  items: string[];
+  styles: (typeof themeStyles)[ThemeName];
+}) {
+  return (
+    <section className={cn("rounded-md border bg-white/50 p-3", styles.border)}>
+      <div className="mb-2 text-xs font-semibold uppercase tracking-normal">{title}</div>
+      <div className="grid gap-2 text-sm leading-5">
+        {items.length ? (
+          items.map((item) => (
+            <div key={item} className="flex gap-2">
+              <span className={cn("mt-2 size-1.5 shrink-0 rounded-full", styles.primary)} />
+              <span className="min-w-0 break-words">{item}</span>
+            </div>
+          ))
+        ) : (
+          <p className={styles.subtle}>None provided.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PipelineProgress({
+  activeIndex,
+  styles,
+}: {
+  activeIndex: number;
+  styles: (typeof themeStyles)[ThemeName];
+}) {
+  return (
+    <div className={cn("mt-3 rounded-md border p-3", styles.border, styles.soft)}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <RefreshCw className="size-4 animate-spin" />
+          {generationStages[Math.min(activeIndex, generationStages.length - 1)].label}
+        </span>
+        <span className={cn("text-xs", styles.subtle)}>
+          {Math.min(activeIndex + 1, generationStages.length)} / {generationStages.length}
+        </span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {generationStages.map((stage, index) => {
+          const complete = index < activeIndex;
+          const active = index === activeIndex;
+          return (
+            <div
+              key={stage.key}
+              className={cn(
+                "flex items-center gap-2 rounded-md border px-2 py-2 text-xs",
+                styles.border,
+                active ? "bg-white/80" : "bg-white/40",
+              )}
+            >
+              <span
+                className={cn(
+                  "flex size-5 shrink-0 items-center justify-center rounded-full border",
+                  styles.border,
+                  complete ? "bg-emerald-500 text-white" : active ? styles.primary : "",
+                  active ? "text-white" : "",
+                )}
+              >
+                {complete ? <Check className="size-3" /> : index + 1}
+              </span>
+              <span className="min-w-0 truncate">{stage.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PipelineStageSummary({
+  timings,
+  styles,
+}: {
+  timings: Record<string, number>;
+  styles: (typeof themeStyles)[ThemeName];
+}) {
+  const entries = Object.entries(timings ?? {}).filter(([, value]) => Number.isFinite(value));
+  if (!entries.length) {
+    return null;
+  }
+  return (
+    <details className={cn("mt-3 rounded-md border bg-white/50", styles.border)}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-medium">
+        <span className="flex items-center gap-2">
+          <ChevronDown className="size-3" />
+          Pipeline timings
+        </span>
+        <span className={styles.subtle}>{Math.round(totalTiming(entries))} ms</span>
+      </summary>
+      <div className="flex flex-wrap gap-2 border-t border-black/5 p-3">
+        {entries.map(([stage, value]) => (
+          <span
+            key={stage}
+            className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs", styles.border)}
+          >
+            <span className={styles.subtle}>{labelize(stage)}</span>
+            <span className="font-medium">{Math.round(value)} ms</span>
+          </span>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function OptimizationHud({
+  prompt,
+  styles,
+}: {
+  prompt: PromptVariant;
+  styles: (typeof themeStyles)[ThemeName];
+}) {
+  if (!prompt.recommended_actions.length) {
+    return null;
+  }
+  return (
+    <div className="mb-3">
+      <div className={cn("mb-2 text-[11px] font-medium uppercase tracking-normal", styles.subtle)}>
+        Next improvements
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {prompt.recommended_actions.map((action) => (
+          <span
+            key={action.id}
+            className={cn(
+              "inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-1 text-xs",
+              styles.border,
+              action.priority === "high" ? "bg-amber-50 text-amber-900" : "",
+            )}
+            title={action.impact}
+          >
+            <Plus className="size-3 shrink-0" />
+            <span className="min-w-0 truncate">{action.label}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1222,7 +1518,7 @@ function EvaluationDetails({
           <ChevronDown className="size-3" />
           Evaluation details
         </span>
-        <span className={styles.subtle}>{scorerSource.replaceAll("_", " ")}</span>
+        <span className={styles.subtle}>{scorerLabel(scorerSource)}</span>
       </summary>
       <div className="space-y-3 border-t border-black/5 p-3 text-xs leading-5">
         {prompt.why_this_variant ? (
@@ -1274,6 +1570,24 @@ function EvaluationDetails({
           styles={styles}
         />
         <DetailList
+          title="Rules Matched"
+          items={prompt.rules_matched.map((item) => ({
+            id: item.id,
+            label: item.label,
+            detail: item.detail,
+          }))}
+          styles={styles}
+        />
+        <DetailList
+          title="Trait Alignment"
+          items={prompt.user_trait_alignment.map((item, index) => ({
+            id: item.trait_key ?? `${item.label ?? "trait"}-${index}`,
+            label: item.label ?? labelize(item.trait_key ?? "profile trait"),
+            detail: traitAlignmentDetail(item),
+          }))}
+          styles={styles}
+        />
+        <DetailList
           title="Optimization Paths"
           items={prompt.optimization_paths.map((item) => ({
             id: item.id,
@@ -1282,9 +1596,44 @@ function EvaluationDetails({
           }))}
           styles={styles}
         />
+        <ScorerDetails metadata={prompt.scorer_metadata} styles={styles} />
       </div>
     </details>
   );
+}
+
+function ScorerDetails({
+  metadata,
+  styles,
+}: {
+  metadata: Record<string, unknown>;
+  styles: (typeof themeStyles)[ThemeName];
+}) {
+  const source =
+    typeof metadata.scorer_source === "string"
+      ? scorerLabel(metadata.scorer_source)
+      : "Deterministic";
+  const version =
+    typeof metadata.scorer_version === "string"
+      ? metadata.scorer_version
+      : "phase scorer";
+  const provider =
+    typeof metadata.model_provider === "string"
+      ? optionLabel(metadata.model_provider)
+      : "Local";
+  const model = typeof metadata.model === "string" ? metadata.model : null;
+  const ollamaStatus =
+    typeof metadata.ollama_status === "string"
+      ? labelize(metadata.ollama_status)
+      : null;
+  const items = [
+    { id: "source", label: "Source", detail: source },
+    { id: "version", label: "Version", detail: version },
+    { id: "provider", label: "Provider", detail: provider },
+    ...(model ? [{ id: "model", label: "Model", detail: model }] : []),
+    ...(ollamaStatus ? [{ id: "ollama", label: "Local evaluator", detail: ollamaStatus }] : []),
+  ];
+  return <DetailList title="Scorer Status" items={items} styles={styles} />;
 }
 
 function DetailList({
@@ -1549,6 +1898,125 @@ function optionLabel(value: string) {
   return labels[value] ?? labelize(value);
 }
 
+function scorerLabel(value: string) {
+  const labels: Record<string, string> = {
+    deterministic_fallback: "Deterministic",
+    ollama_blended: "Ollama blended",
+  };
+  return labels[value] ?? labelize(value);
+}
+
+function parsePromptContract(promptText: string) {
+  const overviewKeys = new Set(["Role", "Task", "Context", "Domain", "Intent", "Risk Level"]);
+  const behaviorKeys = new Set([
+    "Target Platform",
+    "Platform Behavior",
+    "Audience",
+    "Tone",
+    "Formality",
+    "Detail Level",
+    "Temperature Or Creativity Guidance",
+    "Reasoning Style",
+    "Interaction Mode",
+    "Output Format",
+    "Success Criteria",
+    "Safety Or Source Boundaries",
+  ]);
+  const contract = {
+    overview: [] as { label: string; value: string }[],
+    behavior: [] as { label: string; value: string }[],
+    knownDetails: [] as string[],
+    constraints: [] as string[],
+    assumptions: [] as string[],
+    followUps: [] as string[],
+    outputStructure: [] as string[],
+    preferences: [] as { label: string; value: string }[],
+  };
+  const sectionByHeading: Record<string, keyof typeof contract> = {
+    "known user details": "knownDetails",
+    constraints: "constraints",
+    assumptions: "assumptions",
+    "follow-up behavior": "followUps",
+    "produce the final answer with this structure": "outputStructure",
+    "user preferences": "preferences",
+  };
+  let currentSection: keyof typeof contract | null = null;
+  for (const rawLine of promptText.split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const heading = trimmed.replace(/:$/, "").toLowerCase();
+    if (sectionByHeading[heading]) {
+      currentSection = sectionByHeading[heading];
+      continue;
+    }
+    if (currentSection === "preferences") {
+      const preference = parsePreferenceLine(trimmed);
+      if (preference) {
+        contract.preferences.push(preference);
+      }
+      continue;
+    }
+    const field = parsePromptField(trimmed);
+    if (field && behaviorKeys.has(field.label)) {
+      contract.behavior.push(field);
+      currentSection = null;
+      continue;
+    }
+    if (currentSection) {
+      (contract[currentSection] as string[]).push(cleanPromptListItem(trimmed));
+      continue;
+    }
+    if (!field) {
+      continue;
+    }
+    if (overviewKeys.has(field.label)) {
+      contract.overview.push(field);
+    } else if (behaviorKeys.has(field.label)) {
+      contract.behavior.push(field);
+    }
+  }
+  return contract;
+}
+
+function parsePromptField(line: string): { label: string; value: string } | null {
+  const match = line.match(/^([^:]{2,80}):\s*(.+)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    label: labelize(match[1].trim()),
+    value: match[2].trim(),
+  };
+}
+
+function parsePreferenceLine(line: string): { label: string; value: string } | null {
+  const field = parsePromptField(cleanPromptListItem(line));
+  if (!field) {
+    return null;
+  }
+  return field;
+}
+
+function cleanPromptListItem(line: string) {
+  return line.replace(/^[-*]\s*/, "").trim();
+}
+
+function totalTiming(entries: [string, number][]) {
+  return entries.reduce((total, [, value]) => total + value, 0);
+}
+
+function traitAlignmentDetail(item: PromptVariant["user_trait_alignment"][number]) {
+  const score = typeof item.score === "number" ? `Score ${Math.round(item.score * 100)}` : null;
+  const confidence =
+    typeof item.confidence === "number"
+      ? `confidence ${Math.round(item.confidence * 100)}`
+      : null;
+  const usedFor = item.used_for ?? "Used to adjust clarification and recommendation emphasis.";
+  return [usedFor, score, confidence].filter(Boolean).join(" / ");
+}
+
 function labelize(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
@@ -1586,16 +2054,25 @@ function loadActiveSessionProfile(): ActiveSessionProfile | null {
 
 function saveActiveSessionProfile(profile: ActiveSessionProfile) {
   if (typeof window === "undefined") {
-    return;
+    return false;
   }
-  window.localStorage.setItem(activeSessionStorageKey, JSON.stringify(profile));
+  try {
+    window.localStorage.setItem(activeSessionStorageKey, JSON.stringify(profile));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function clearActiveSessionProfile() {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.removeItem(activeSessionStorageKey);
+  try {
+    window.localStorage.removeItem(activeSessionStorageKey);
+  } catch {
+    // Session end should still work if the browser blocks local persistence.
+  }
 }
 
 function normalizeSessionPlatform(value: unknown): SessionAiPlatform {

@@ -1,157 +1,165 @@
 # PromptPilot
 
-PromptPilot is a planned full-stack prompting experience platform. Its goal is to understand how a user prompts, build a useful prompting profile, guide clarifying questions, and generate detailed prompts shaped for the user's domain, preferences, and target AI platform.
+PromptPilot is a full-stack prompting workspace that turns a messy request into a clearer, platform-aware prompt. It starts with a clean user session, confirms the domain when needed, asks or skips clarifying questions, generates prompt variants, scores them, and explains the recommended version in plain language.
 
 Project owner: Sameer Nagar
 
-The core promise:
+Core promise:
 
 > Understand how you prompt. Then help you ask every AI system better.
 
-## What PromptPilot Will Do
-
-PromptPilot is not intended to be a static prompt template library. It is designed as a prompting intelligence layer that can:
-
-- Understand a user's messy natural-language problem.
-- Detect domain, intent, risk, and likely user need, then confirm the domain with the user.
-- Ask clarifying questions before recommending a refined prompt.
-- Let the user tune style, depth, tone, formality, temperature, risk, source strictness, and output format.
-- Generate detailed prompt variants for the selected domain and target platform.
-- Score, compare, and recommend the strongest prompt.
-- Let users copy, save, improve, or run prompts.
-- Study imported or connected AI chat history to identify prompting traits and patterns.
-- Build a user prompting profile that can answer questions like "what do I usually miss?" or "how should I prompt Codex better?"
-- Expand later into Codex, Claude, ChatGPT, Gemini, MCP, and other platform integrations.
-
-## MVP Scope
-
-The original MVP is complete when a user can:
-
-- Enter a messy problem.
-- Get automatic domain and intent detection.
-- Answer clarifying questions.
-- Tune prompt settings.
-- Generate at least 3 prompt variants.
-- Compare scores and explanations.
-- Copy or run the selected prompt.
-- Save prompts to a personal library.
-
-Initial MVP domains:
-
-- Car and home troubleshooting
-- Software and project building
-- Writing and business communication
-- Learning and research
-
-The revised product direction removes the fixed-domain mindset after the MVP. Future phases should support open domain detection, domain confirmation, and user-supplied domain correction.
-
-## Planned Stack
-
-Frontend:
-
-- Next.js
-- TypeScript
-- Tailwind CSS
-- shadcn/ui
-- lucide-react
-
-Backend:
-
-- FastAPI
-- Python 3.10+
-- Pydantic
-- SQLAlchemy
-- Uvicorn
-
-Data and infrastructure:
-
-- Postgres
-- pgvector
-- Docker Compose
-
-AI and evaluation:
-
-- LiteLLM
-- Ollama
-- DSPy
-- promptfoo
-- Langfuse
-
 ## Current Status
 
-Current project status: Phase 13 profile Q&A and UX dashboard is complete. The local environment, monorepo scaffold, local Postgres/pgvector service, FastAPI workflow, SQLAlchemy persistence, guided Next.js workspace, profile dashboard, trait signal detector, chat import foundation, domain confirmation flow, refinement-first prompt workflow, platform-aware prompt controls, and grounded profile Q&A are ready.
+Phase 14 is complete. Phase 15 is in progress and is focused on cleanup, documentation, output polish, knowledge/RAG/DSPy/agent-track planning, and deployment readiness.
 
-Roadmap status: the plan has pivoted from a prompt knowledge base first to a user-experience-led prompting profile system. Phase 14 is next: Session Onboarding, Live Evaluation, Privacy, and Production Readiness, with `POST /sessions/{session_id}/run-pipeline` becoming the live scoring path for prompt quality improvement. Phase 15 then cleans the codebase, README, minimal UX, AI-formatted scoring explanations, platform-fit ratings, recommended actions, and deployment readiness before Phase 16 deploys the local Next.js frontend and local FastAPI backend directly to Vercel.
+The active local contract is intentionally simple:
 
-Completed so far:
+- Frontend: `http://localhost:3000` or `http://127.0.0.1:3000`
+- API: `http://localhost:8000` or `http://127.0.0.1:8000`
+- No extra preview ports are part of the default local workflow.
 
-- Product direction and execution phases are documented in `EXECUTION_LOG.md`.
-- Local environment inventory and phase plans are documented under `execution-reports/`.
-- GitHub remote sync has been configured.
-- Phase 0 local environment setup is complete.
-- Node, pnpm, Python, uv, Docker Desktop, Ollama, and the `llama3.1:8b` local model are installed or verified.
-- Phase 1 monorepo scaffold is complete.
-- Next.js frontend is initialized in `apps/web`.
-- FastAPI backend is initialized in `apps/api`.
-- Shared package, docs, scripts, datasets, evals, and infra folders are present.
-- Postgres/pgvector local infrastructure is defined in `infra/docker-compose.yml`.
-- API database and Ollama environment values are present in `apps/api/.env.example`.
-- The `pgvector/pgvector:pg16` image pulls successfully.
-- The local Postgres container starts, accepts connections, and has pgvector `0.8.2` enabled.
-- Backend API skeleton modules, routers, schemas, and rule-based services are implemented.
-- The API can create sessions, classify problems, ask clarifying questions, record answers, generate prompt variants, score them, run a Phase 3 stub, save prompts, and list saved prompts.
-- SQLAlchemy models exist for users, sessions, clarifying questions, prompt variants, prompt scores, saved prompts, prompt sources, prompt embeddings, and domain packs.
-- The API workflow now persists sessions, questions, prompt variants, scores, and saved prompts to Postgres.
-- `prompt_embeddings.embedding` uses pgvector `vector(1536)` for future retrieval work.
-- Prompt engine V1 can run the complete local pipeline without an external LLM.
-- `POST /sessions/{session_id}/run-pipeline` classifies, asks questions, merges answers/settings, generates 3 variants, scores them, and selects a deterministic recommendation.
-- All six planned prompt strategies are implemented: `diagnostic`, `beginner_step_by_step`, `expert_consultant`, `safety_first`, `comparison`, and `questions_first`.
-- Frontend MVP workspace is implemented at `/`.
-- Frontend routes exist for `/sessions/[id]`, `/compare/[id]`, `/library`, and `/settings`.
-- The workspace can generate, compare, copy, run, save, and refresh prompt variants against the local API.
-- Phase 7 profile foundation tables, schemas, and API route are implemented.
-- `GET /profile` and `POST /profile/refresh` return a local prompting profile.
-- The profile analyzer creates first-pass trait observations from existing local sessions.
-- The frontend has a `/profile` dashboard with profile metrics, trait cards, confidence scores, and evidence links.
-- Phase 8 adds `prompting_trait_signals` and the `trait_detector_v1` analyzer.
-- Profile observations now roll up per-example signals with evidence levels and representative signal explanations.
-- The `/profile` dashboard shows evidence level badges, signal counts, and signal explanations.
-- Phase 9 adds user-provided chat import endpoints at `/imports`.
-- Chat imports normalize pasted text and JSON-style exports into conversations and messages.
-- Imported messages redact obvious API keys, bearer tokens, emails, and phone numbers in the API preview.
-- Import delete and reprocess controls refresh derived profile observations.
-- The frontend has a `/profile/imports` review workflow with platform/source controls, upload, redaction status, import ledger, preview, reprocess, and delete actions.
-- Phase 10 replaces the fixed-domain classifier with an open-domain detector that returns subdomain, evidence, alternatives, and confirmation state.
-- `POST /sessions/{session_id}/domain-confirmation` stores user-confirmed or user-corrected domains.
-- Prompt generation uses confirmed domains and now leads with one readable recommended prompt before alternatives.
-- The workspace now hides advanced preferences by default, shows a full recommended prompt, supports domain confirmation, and includes three theme options.
-- Phase 11 adds an explicit Refine mode that asks critical questions before recommending a prompt.
-- Clarifying questions now support answered, skipped, and revised states.
-- Skipped or missing required context becomes explicit prompt assumptions.
-- Generated recommended prompts include the detailed contract: role, task, context, domain, constraints, audience, tone, formality, detail level, creativity guidance, output format, success criteria, assumptions, follow-up behavior, and safety/source boundaries.
-- Prompt revisions are stored and surfaced in the workspace.
-- Recommendation explanations mention settings, answers/skips, assumptions, and profile traits.
-- Phase 12 adds target platform, interaction mode, reasoning style, detail level, formality, temperature, and source strictness controls.
-- Prompt output now changes for Codex, Claude, ChatGPT, Gemini, Cursor, and generic assistants.
-- Platform preferences persist into the local prompting profile and seed fresh workspace sessions.
-- Prompt scoring includes platform fit, and Phase 14 will evolve scoring into a live Ollama-backed evaluation path for the interactive session pipeline.
-- Phase 13 adds grounded profile Q&A, insight dashboard sections, evidence references, and observation correction/hide flows.
-- API CORS can be configured with `ALLOWED_ORIGINS` for local dev, local production, and future hosted origins.
+## Architecture
 
-Not started yet:
+- `apps/web`: Next.js 16, React 19, TypeScript, Tailwind CSS, Base UI, and lucide-react.
+- `apps/api`: FastAPI, SQLAlchemy, Pydantic, pgvector, LiteLLM/DSPy-ready dependencies, and Uvicorn.
+- `packages/shared`: shared TypeScript types and package boundary for future cross-app contracts.
+- `infra/docker-compose.yml`: local Postgres with pgvector.
+- `execution-reports/`: phase logs, status notes, and verification history.
 
-- Session onboarding, rules acceptance, guardrails, clean-slate user sessions, evaluation, privacy, production readiness, codebase cleanup, knowledge support systems, and final Vercel deployment
+The frontend reads the API URL from `NEXT_PUBLIC_API_BASE_URL`. The API reads CORS origins from `ALLOWED_ORIGINS`.
 
-## Planning Documents
+## Local Setup
 
-- `EXECUTION_LOG.md`: product definition, stack, revised phases, and implementation checklist.
-- `execution-reports/README.md`: guide to the planning/report folder.
-- `execution-reports/CURRENT_STATUS.md`: current project state.
-- `execution-reports/00-environment-inventory.md`: installed local tools and environment notes.
-- `execution-reports/01-raw-materials.md`: technologies, modules, screens, APIs, tables, and evaluation materials.
-- `execution-reports/phases/`: phase-by-phase execution logs from Phase 0 through Phase 16.
-- `execution-reports/CHANGELOG.md`: chronological record of checks, edits, commits, and sync steps.
+Install JavaScript dependencies:
 
-## Next Step
+```powershell
+pnpm.cmd install
+```
 
-The next implementation step is Phase 14: Session Onboarding, Live Evaluation, Privacy, and Production Readiness.
+Install or sync Python dependencies:
+
+```powershell
+uv --directory apps/api sync
+```
+
+Start local Postgres:
+
+```powershell
+docker compose -f infra/docker-compose.yml up -d
+```
+
+Create local environment files from the examples:
+
+```powershell
+Copy-Item .env.example .env
+Copy-Item apps/api/.env.example apps/api/.env
+Copy-Item apps/web/.env.example apps/web/.env.local
+```
+
+Start the API:
+
+```powershell
+pnpm.cmd run dev:api
+```
+
+Start the web app in a second terminal:
+
+```powershell
+pnpm.cmd run dev:web
+```
+
+## Environment Variables
+
+Root and API:
+
+- `APP_ENV`: `development` locally, `production` on Vercel.
+- `DATABASE_URL`: Postgres connection string.
+- `LLM_PROVIDER`: `ollama` for local evaluation, or a hosted provider for production.
+- `OLLAMA_BASE_URL`: local Ollama endpoint for development scoring.
+- `DEFAULT_MODEL`: default scoring/model identifier.
+- `ALLOWED_ORIGINS`: comma-separated frontend origins. Locally this should stay on port `3000`.
+
+Web:
+
+- `NEXT_PUBLIC_API_BASE_URL`: API base URL. Locally this should stay on port `8000`.
+
+Production secrets should live in Vercel or the managed provider dashboard, never in committed files.
+
+## Main Workflows
+
+- Start a session with display name, primary AI platform, and rules acceptance.
+- Enter a raw request and choose Refine or Quick mode.
+- Confirm or correct the detected domain when prompted.
+- Answer, skip, or revise clarifying questions.
+- Review the recommended platform-aware prompt first, with alternatives secondary.
+- Expand evaluation details only when needed: score breakdowns, platform fit, modification audit trails, skipped-question assumptions, matched rules, trait alignment, optimization paths, recommended actions, and scorer metadata.
+- Save prompts to the library, export session data, or delete session-scoped data.
+- Import previous AI chats, review redacted previews, reprocess imports, and refresh the prompting profile.
+- Ask profile questions and correct or hide derived profile observations.
+
+## API Surface
+
+Core endpoints:
+
+- `GET /health`
+- `POST /sessions`
+- `GET /sessions/{session_id}`
+- `POST /sessions/{session_id}/end`
+- `GET /sessions/{session_id}/audit-logs`
+- `GET /sessions/{session_id}/export`
+- `DELETE /sessions/{session_id}/data`
+- `POST /sessions/{session_id}/run-pipeline`
+- `POST /sessions/{session_id}/domain-confirmation`
+- `POST /sessions/{session_id}/run-prompt`
+- `POST /prompts/{prompt_id}/save`
+- `GET /saved-prompts`
+- `GET /profile`
+- `GET /profile/insights`
+- `POST /profile/questions`
+- `POST /profile/refresh`
+- `GET /profile/export`
+- `DELETE /profile/data`
+- `PATCH /profile/observations/{observation_id}`
+- `DELETE /profile/observations/{observation_id}`
+- `POST /imports`
+- `GET /imports`
+- `GET /imports/{import_id}`
+- `POST /imports/{import_id}/reprocess`
+- `DELETE /imports/{import_id}`
+
+## Data and Privacy
+
+The local MVP stores sessions, prompts, scores, audit events, imports, profile traits, and derived observations in Postgres. Session exports are available as Markdown or JSON. Session deletion removes session-scoped prompts, scores, revisions, saved prompts, embeddings, and audit events, then records a non-sensitive deletion completion event. Profile reset clears derived profile data while preserving source sessions and imports.
+
+Imported chat content is normalized and redacted for obvious secrets such as API keys, bearer tokens, emails, and phone numbers before preview.
+
+## Verification
+
+Run the core checks before Phase 16 deployment work:
+
+```powershell
+uv --directory apps/api run python -m compileall app
+pnpm.cmd --dir apps/web lint
+pnpm.cmd --dir apps/web build
+```
+
+For a local production-build smoke check, stop the dev server first and reuse the same frontend port:
+
+```powershell
+pnpm.cmd --dir apps/web start
+```
+
+## Deployment Path
+
+Phase 16 deploys the final FastAPI API and final Next.js web app directly to Vercel from this monorepo. Use separate Vercel projects for `apps/api` and `apps/web` unless a single Vercel service setup is explicitly selected later.
+
+Deployment is production-first:
+
+- API project root: `apps/api`
+- Web project root: `apps/web`
+- API deploy command: `vercel deploy --prod`
+- Web deploy command: `vercel deploy --prod`
+- Web production env: `NEXT_PUBLIC_API_BASE_URL`
+- API production env: `APP_ENV=production`, `DATABASE_URL`, `LLM_PROVIDER`, `DEFAULT_MODEL`, provider API keys, and the final production web origin in `ALLOWED_ORIGINS`
+
+Do not rely on local Docker, local Ollama, localhost URLs, or preview ports for public traffic.
