@@ -10,7 +10,6 @@ import {
   Trash2,
   UploadCloud,
 } from "lucide-react";
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -23,6 +22,7 @@ import {
   ImportSourceType,
   reprocessImport,
 } from "@/lib/api";
+import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -173,36 +173,17 @@ export function ImportsView() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f7f2] text-[#1d2523]">
-      <header className="border-b border-[#d9ded2] bg-[#fbfcf7]">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-md bg-[#1e4d45] text-white">
-              <Database className="size-4" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold">Chat Imports</h1>
-              <p className="text-xs text-[#65736f]">{status}</p>
-            </div>
-          </div>
-          <nav className="flex flex-wrap items-center gap-2 text-sm">
-            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/">
-              Workspace
-            </Link>
-            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/profile">
-              Profile
-            </Link>
-            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/library">
-              Library
-            </Link>
-            <Button type="button" variant="outline" onClick={loadImports} disabled={refreshing}>
-              <RefreshCw className={cn(refreshing ? "animate-spin" : "")} />
-              Refresh
-            </Button>
-          </nav>
-        </div>
-      </header>
-
+    <AppShell
+      title="Chat Imports"
+      status={status}
+      icon={<Database className="size-4" />}
+      actions={
+        <Button type="button" variant="outline" onClick={loadImports} disabled={refreshing}>
+          <RefreshCw className={cn(refreshing ? "animate-spin" : "")} />
+          Refresh
+        </Button>
+      }
+    >
       <div className="mx-auto grid max-w-6xl gap-4 px-4 py-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         {error ? (
           <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 lg:col-span-2">
@@ -436,7 +417,7 @@ export function ImportsView() {
           )}
         </section>
       </div>
-    </main>
+    </AppShell>
   );
 }
 

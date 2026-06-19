@@ -2,7 +2,7 @@
 
 ## Goal
 
-Prepare PromptPilot for Phase 16 Vercel deployment by cleaning the codebase, simplifying the product surface, documenting the architecture, and ensuring AI-generated scoring explanations, platform-fit ratings, and recommended actions are cleanly formatted for the Next.js dashboards.
+Prepare PromptPilot for Phase 16 Vercel deployment by cleaning the codebase, simplifying the product surface, documenting the architecture, and ensuring AI-generated scoring explanations, platform-fit ratings, backend modification rationale, and recommended actions are cleanly formatted for minimalist Next.js dashboards.
 
 ## Status
 
@@ -38,10 +38,29 @@ Not started.
 - Hide raw scoring figures, traces, and implementation details behind optional expanded views.
 - Keep mobile, tablet, and desktop layouts polished before deployment.
 
+## Maximum Value and Minimalist UX Requirements
+
+### Explicit Backend Value Exposure
+
+- Add a modification audit trail requirement for the post-execution UI: every backend alteration to the user's raw request must have a concise, inspectable explanation of why it happened.
+- When a user skips a clarifying question, the UI must explicitly flag the corresponding injected assumption, such as showing that an assumption was added because required context was missing.
+- Surface platform-fit granularity instead of a single generic score: the UI must explain how the final prompt strategy optimizes differently for target LLM architectures such as Codex, Gemini, Claude, ChatGPT/OpenAI, Cursor, and generic assistants.
+- Require platform-fit details to show distinct ratings or behaviors where relevant, such as Codex emphasizing repository context and verification, Gemini supporting broad or multimodal context, and Claude favoring long-context structure and nuance.
+- Expose analytical reasoning metadata from the pipeline in a user-safe form, including matched rules, user-trait alignment, skipped-question assumptions, confirmed or corrected domain influence, and specific optimization paths taken.
+- Keep all metadata explanatory and product-facing; never surface raw chain-of-thought, evaluator prompts, unvalidated model chatter, or internal debug traces.
+
+### Progressive Disclosure Guardrails
+
+- Preserve a zero-clutter default: the first post-execution state must keep visual focus on the primary recommended prompt output.
+- Move scoring explanations, modification logs, platform metrics, rule matches, trait-alignment details, and recommended next steps behind progressive disclosure controls such as hoverable tooltips, collapsible accordions, drawers, or compact tabs.
+- Provide an actionable optimization HUD as a low-profile recommendation area, not a wall of text.
+- Express high-leverage next steps as concrete micro-actions, such as `[+] Add Source Constraints` or `[+] Add Audience Detail`, with expected impact when available, such as improving platform fit or reducing assumption risk.
+- Keep the HUD secondary to the generated prompt and avoid generic recommendation blocks that compete with the main output.
+
 ## AI-Formatted Scoring Output
 
 - Ensure AI-generated scoring explanations, platform-fit ratings, and recommended actions are cleanly formatted and safe to surface in the Next.js workspace, comparison view, profile dashboard, and future evaluation dashboards.
-- Define a frontend-ready scoring contract that can include `score_total`, `score_breakdown`, `platform_fit_rating`, `recommendation_label`, `recommendation_summary`, `why_this_variant`, `assumption_notes`, `recommended_actions`, and `scorer_metadata`.
+- Define a frontend-ready scoring contract that can include `score_total`, `score_breakdown`, `platform_fit_rating`, `platform_fit_breakdown`, `recommendation_label`, `recommendation_summary`, `why_this_variant`, `assumption_notes`, `modification_audit_trail`, `rules_matched`, `user_trait_alignment`, `optimization_paths`, `recommended_actions`, and `scorer_metadata`.
 - Keep score explanations short, specific, and user-facing. They should explain why a variant is recommended for the selected platform, such as Claude versus OpenAI/ChatGPT, without exposing raw evaluator prompts or model chatter.
 - Translate evaluation metrics into clear feedback about how the user's raw request improved, what assumptions remain, which domain details matter, and what action the user should take next.
 - Make platform-fit guidance explicit: explain why a Claude prompt may emphasize long-context structure and nuance, why an OpenAI/ChatGPT prompt may emphasize portable explicit instructions, why a Codex prompt may emphasize repository context and verification, and why generic prompts avoid provider-specific assumptions.
@@ -88,10 +107,14 @@ Not started.
 - [ ] `README.md`, `apps/api/README.md`, and `apps/web/README.md` accurately explain architecture, setup, functionality, sessions, guardrails, live evaluation, scorer metadata, dashboard output, and deployment.
 - [ ] Current status, changelog, and phase docs do not conflict with the Phase 16 Vercel deployment plan.
 - [ ] The app remains minimal, responsive, and readable on mobile, tablet, and desktop.
+- [ ] The first post-execution view is zero-clutter and keeps primary focus on the recommended prompt output.
 - [ ] Session state sticks until the user explicitly ends it.
 - [ ] No seeded demo examples or precreated user data appear in a new production session.
 - [ ] All user-facing interpreted outputs are AI-formatted and personalized.
-- [ ] Scoring explanations, platform-fit ratings, and recommended actions are formatted for frontend display.
+- [ ] Scoring explanations, platform-fit ratings, modification audit trails, platform-fit breakdowns, and recommended actions are formatted for frontend display.
+- [ ] Skipped clarifying questions visibly map to injected assumptions in the advanced details UI.
+- [ ] Rules matched, user-trait alignment, and optimization paths are available behind progressive disclosure without exposing raw internals.
+- [ ] The optimization HUD presents concrete micro-actions instead of generic explanatory text blocks.
 - [ ] Recommended variants explain why they fit the selected target platform, including Claude versus OpenAI/ChatGPT-style differences when relevant.
 - [ ] Dashboard copy translates scores into actionable user feedback instead of exposing raw evaluator internals.
 - [ ] Output guardrails prevent raw JSON, chain-of-thought, unvalidated evaluator text, raw `Problem: ...` echoes, and confusing score dumps from appearing in the UI.

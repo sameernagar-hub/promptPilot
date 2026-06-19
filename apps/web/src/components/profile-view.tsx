@@ -4,6 +4,7 @@ import {
   Brain,
   Check,
   Database,
+  FileText,
   Gauge,
   HelpCircle,
   History,
@@ -25,7 +26,9 @@ import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import {
   askProfileQuestion,
   correctProfileObservation,
+  deleteProfileData,
   deleteProfileObservation,
+  exportProfile,
   getProfile,
   getProfileInsights,
   ProfileEvidenceReference,
@@ -36,6 +39,7 @@ import {
   refreshProfile,
   TraitObservation,
 } from "@/lib/api";
+import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -97,6 +101,52 @@ export function ProfileView() {
       setStatus(profileValue.status);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Refresh failed");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function exportCurrentProfile() {
+    setRefreshing(true);
+    setError("");
+    try {
+      const exported = await exportProfile("markdown");
+      const blob = new Blob([exported.content], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = exported.filename;
+      link.click();
+      URL.revokeObjectURL(url);
+      setStatus("Exported");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Export failed");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function deleteCurrentProfileData() {
+    const confirmed = window.confirm(
+      "Delete derived profile traits, signals, platform preferences, and observation overrides?",
+    );
+    if (!confirmed) {
+      return;
+    }
+    setRefreshing(true);
+    setError("");
+    try {
+      await deleteProfileData();
+      const [profileValue, insightsValue] = await Promise.all([
+        getProfile(),
+        getProfileInsights(),
+      ]);
+      setProfile(profileValue);
+      setInsights(insightsValue);
+      setAnswer(null);
+      setStatus("Profile reset");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Delete failed");
     } finally {
       setRefreshing(false);
     }
@@ -185,45 +235,37 @@ export function ProfileView() {
   }, [profile?.traits]);
 
   return (
-    <main className="min-h-screen bg-[#f6f7f2] text-[#1d2523]">
-      <header className="border-b border-[#d9ded2] bg-[#fbfcf7]">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-md bg-[#1e4d45] text-white">
-              <Brain className="size-4" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold">Prompting Profile</h1>
-              <p className="text-xs text-[#65736f]">{status}</p>
-            </div>
-          </div>
-          <nav className="grid w-full grid-cols-2 items-center gap-2 text-sm sm:flex sm:w-auto sm:flex-wrap">
-            <Link className="rounded-md px-2 py-1 text-center hover:bg-[#edf1e8]" href="/">
-              Workspace
-            </Link>
-            <Link className="rounded-md px-2 py-1 text-center hover:bg-[#edf1e8]" href="/library">
-              Library
-            </Link>
-            <Link className="rounded-md px-2 py-1 text-center hover:bg-[#edf1e8]" href="/profile/imports">
-              Imports
-            </Link>
-            <Link className="rounded-md px-2 py-1 text-center hover:bg-[#edf1e8]" href="/settings">
-              Settings
-            </Link>
-            <Button
-              className="col-span-2 w-full sm:w-auto"
-              type="button"
-              variant="outline"
-              onClick={refresh}
-              disabled={refreshing}
-            >
-              <RefreshCw className={cn(refreshing ? "animate-spin" : "")} />
-              Refresh
-            </Button>
-          </nav>
-        </div>
-      </header>
-
+    <AppShell
+      title="Prompting Profile"
+      status={status}
+      icon={<Brain className="size-4" />}
+      actions={
+        <>
+          <Button type="button" variant="outline" onClick={refresh} disabled={refreshing}>
+            <RefreshCw className={cn(refreshing ? "animate-spin" : "")} />
+            Refresh
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={exportCurrentProfile}
+            disabled={refreshing}
+          >
+            <FileText />
+            Export
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={deleteCurrentProfileData}
+            disabled={refreshing}
+          >
+            <Trash2 />
+            Delete
+          </Button>
+        </>
+      }
+    >
       <div className="mx-auto max-w-6xl px-4 py-4">
         {error ? (
           <p className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
@@ -399,7 +441,7 @@ export function ProfileView() {
           </section>
         )}
       </div>
-    </main>
+    </AppShell>
   );
 }
 

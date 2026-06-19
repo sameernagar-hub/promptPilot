@@ -1,9 +1,9 @@
 "use client";
 
 import { Database, Settings } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { AppShell } from "@/components/app-shell";
 import { getHealth } from "@/lib/api";
 
 type Health = Awaited<ReturnType<typeof getHealth>>;
@@ -22,29 +22,12 @@ export function SettingsView() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#f6f7f2] text-[#1d2523]">
-      <header className="border-b border-[#d9ded2] bg-[#fbfcf7]">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-md bg-[#1e4d45] text-white">
-              <Settings className="size-4" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold">Settings</h1>
-              <p className="text-xs text-[#65736f]">API {status}</p>
-            </div>
-          </div>
-          <nav className="flex items-center gap-2 text-sm">
-            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/">
-              Workspace
-            </Link>
-            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/profile">
-              Profile
-            </Link>
-          </nav>
-        </div>
-      </header>
-
+    <AppShell
+      title="Settings"
+      status={`API ${status}`}
+      icon={<Settings className="size-4" />}
+      maxWidth="5xl"
+    >
       <section className="mx-auto grid max-w-5xl gap-4 px-4 py-4 md:grid-cols-2">
         <div className="rounded-md border border-[#d9ded2] bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
@@ -71,7 +54,7 @@ export function SettingsView() {
           </dl>
         </div>
       </section>
-    </main>
+    </AppShell>
   );
 }
 

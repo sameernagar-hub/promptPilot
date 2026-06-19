@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { getSavedPrompts, SavedPrompt } from "@/lib/api";
+import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 
 export function SavedLibrary() {
@@ -21,29 +22,7 @@ export function SavedLibrary() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#f6f7f2] text-[#1d2523]">
-      <header className="border-b border-[#d9ded2] bg-[#fbfcf7]">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-md bg-[#1e4d45] text-white">
-              <Library className="size-4" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold">Prompt Library</h1>
-              <p className="text-xs text-[#65736f]">{status}</p>
-            </div>
-          </div>
-          <nav className="flex items-center gap-2 text-sm">
-            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/">
-              Workspace
-            </Link>
-            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/profile">
-              Profile
-            </Link>
-          </nav>
-        </div>
-      </header>
-
+    <AppShell title="Prompt Library" status={status} icon={<Library className="size-4" />}>
       <section className="mx-auto grid max-w-6xl gap-3 px-4 py-4 md:grid-cols-2">
         {prompts.length ? (
           prompts.map((prompt) => (
@@ -90,6 +69,6 @@ export function SavedLibrary() {
           </div>
         )}
       </section>
-    </main>
+    </AppShell>
   );
 }

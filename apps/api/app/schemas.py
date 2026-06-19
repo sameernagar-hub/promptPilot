@@ -12,7 +12,29 @@ RiskPreference = Literal["safe_only", "normal", "advanced"]
 SourcePreference = Literal["none", "web", "official_docs"]
 RefinementMode = Literal["refinement", "quick"]
 ClarifyingQuestionState = Literal["unanswered", "answered", "skipped"]
-TargetPlatform = Literal["codex", "claude", "chatgpt", "gemini", "cursor", "generic"]
+TargetPlatform = Literal[
+    "codex",
+    "claude",
+    "chatgpt",
+    "gemini",
+    "cursor",
+    "grok",
+    "perplexity",
+    "copilot",
+    "generic",
+    "other",
+]
+SessionAiPlatform = Literal[
+    "chatgpt",
+    "claude",
+    "grok",
+    "perplexity",
+    "gemini",
+    "copilot",
+    "cursor",
+    "codex",
+    "other",
+]
 DetailLevel = Literal["concise", "balanced", "exhaustive"]
 Formality = Literal["casual", "neutral", "formal"]
 TemperaturePreference = Literal["precise", "balanced", "creative"]
@@ -51,6 +73,19 @@ class PromptSettings(BaseModel):
 class CreateSessionRequest(BaseModel):
     raw_input: str = Field(..., min_length=3)
     settings: PromptSettings = Field(default_factory=PromptSettings)
+    display_name: str = Field(..., min_length=1, max_length=120)
+    primary_ai_platform: SessionAiPlatform
+    rules_accepted: bool
+    session_metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def require_rules_acceptance(self) -> "CreateSessionRequest":
+        self.display_name = self.display_name.strip()
+        if not self.display_name:
+            raise ValueError("Display name is required")
+        if not self.rules_accepted:
+            raise ValueError("Rules must be accepted before starting a session")
+        return self
 
 
 class ClassificationResponse(BaseModel):
@@ -127,6 +162,17 @@ class PromptVariantResponse(BaseModel):
     score_total: float | None = None
     score_breakdown: dict[str, float] = Field(default_factory=dict)
     explanation: str | None = None
+    platform_fit_rating: float | None = None
+    platform_fit_breakdown: dict[str, float] = Field(default_factory=dict)
+    recommendation_summary: str | None = None
+    why_this_variant: str | None = None
+    assumption_notes: list[str] = Field(default_factory=list)
+    modification_audit_trail: list[dict[str, Any]] = Field(default_factory=list)
+    rules_matched: list[dict[str, Any]] = Field(default_factory=list)
+    user_trait_alignment: list[dict[str, Any]] = Field(default_factory=list)
+    optimization_paths: list[dict[str, Any]] = Field(default_factory=list)
+    recommended_actions: list[dict[str, Any]] = Field(default_factory=list)
+    scorer_metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
 
 
@@ -171,6 +217,9 @@ class PromptEngineRunResponse(BaseModel):
     assumptions: list[str] = Field(default_factory=list)
     revisions: list[PromptRevisionResponse] = Field(default_factory=list)
     timeline: list[str]
+    guardrail_status: Literal["passed", "blocked"] = "passed"
+    guardrail_message: str | None = None
+    safe_redirect: str | None = None
 
 
 class RunPromptRequest(BaseModel):
@@ -205,6 +254,10 @@ class SessionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+    display_name: str | None = None
+    primary_ai_platform: str | None = None
+    rules_accepted: bool = False
+    session_metadata: dict[str, Any] = Field(default_factory=dict)
     raw_input: str
     detected_domain: str | None
     detected_intent: str | None
@@ -216,6 +269,51 @@ class SessionResponse(BaseModel):
     prompt_variant_ids: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+    ended_at: datetime | None = None
+
+
+class EndSessionResponse(BaseModel):
+    id: str
+    status: str
+    ended_at: datetime
+
+
+class AuditLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    session_id: str | None = None
+    entity_type: str
+    entity_id: str | None = None
+    event_type: str
+    event_metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class SessionExportResponse(BaseModel):
+    session_id: str
+    format: Literal["markdown", "json"]
+    filename: str
+    content: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class DeleteSessionDataResponse(BaseModel):
+    session_id: str
+    deleted: bool
+    deleted_counts: dict[str, int] = Field(default_factory=dict)
+
+
+class ProfileExportResponse(BaseModel):
+    format: Literal["markdown", "json"]
+    filename: str
+    content: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class DeleteProfileDataResponse(BaseModel):
+    deleted: bool
+    deleted_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class PromptingTraitSignalResponse(BaseModel):

@@ -6,11 +6,12 @@ from typing import Any
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import selectinload
 
-from app.db import SessionLocal
+from app.db import SessionLocal, store
 from app.models import (
     ConversationImport,
     ImportedConversation,
     ImportedMessage,
+    PlatformPreference,
     ProfileObservationOverride,
     ProblemSession,
     PromptingTrait,
@@ -316,6 +317,52 @@ def refresh_prompt_profile() -> PromptProfileResponse:
         return _profile_response(database, profile.id)
 
 
+def reset_prompt_profile_data() -> dict[str, int]:
+    with SessionLocal() as database:
+        profile = _ensure_profile(database)
+        counts = {
+            "observation_overrides": _deleted_count(
+                database.execute(
+                    delete(ProfileObservationOverride).where(
+                        ProfileObservationOverride.profile_id == profile.id
+                    )
+                )
+            ),
+            "trait_observations": _deleted_count(
+                database.execute(
+                    delete(TraitObservation).where(TraitObservation.profile_id == profile.id)
+                )
+            ),
+            "trait_signals": _deleted_count(
+                database.execute(
+                    delete(PromptingTraitSignal).where(
+                        PromptingTraitSignal.profile_id == profile.id
+                    )
+                )
+            ),
+            "platform_preferences": _deleted_count(
+                database.execute(
+                    delete(PlatformPreference).where(PlatformPreference.profile_id == profile.id)
+                )
+            ),
+        }
+        profile.status = "empty"
+        reset_at = utc_now()
+        profile.summary = {"needs_more_evidence": True, "reset_at": reset_at.isoformat()}
+        profile.observation_count = 0
+        profile.last_refreshed_at = reset_at
+        profile.updated_at = reset_at
+        database.commit()
+
+    store.record_audit_log(
+        event_type="profile_data_deleted",
+        entity_type="user_prompt_profile",
+        entity_id=LOCAL_PROFILE_KEY,
+        metadata={"deleted_counts": counts},
+    )
+    return counts
+
+
 def ensure_local_profile(database) -> UserPromptProfile:
     return _ensure_profile(database)
 
@@ -329,6 +376,11 @@ def _ensure_profile(database) -> UserPromptProfile:
         database.add(profile)
         database.flush()
     return profile
+
+
+def _deleted_count(result) -> int:
+    count = getattr(result, "rowcount", 0)
+    return count if isinstance(count, int) and count > 0 else 0
 
 
 def _ensure_traits(database) -> dict[str, PromptingTrait]:

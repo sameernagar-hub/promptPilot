@@ -11,8 +11,8 @@ def run_prompt(prompt: PromptVariant) -> RunPromptResponse:
         provider=settings.llm_provider,
         model=settings.default_model,
         output=(
-            "Phase 3 run-prompt stub: model execution is not wired yet. "
-            f"Provider={settings.llm_provider}; model={settings.default_model}. "
+            "Model execution preview. Live completion is not connected in this local build. "
+            f"Provider: {settings.llm_provider}. Model: {settings.default_model}. "
             f"Prompt preview: {preview}"
         ),
     )

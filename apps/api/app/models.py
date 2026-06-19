@@ -229,6 +229,10 @@ class ProblemSession(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
     user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    primary_ai_platform: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    rules_accepted: Mapped[bool] = mapped_column(Boolean, default=False)
+    session_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
     raw_input: Mapped[str] = mapped_column(Text)
     detected_domain: Mapped[str | None] = mapped_column(String(120), nullable=True)
     detected_intent: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -242,6 +246,7 @@ class ProblemSession(Base):
         default=utc_now,
         onupdate=utc_now,
     )
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User | None] = relationship(back_populates="sessions")
     question_rows: Mapped[list["ClarifyingQuestion"]] = relationship(
@@ -331,6 +336,7 @@ class PromptVariant(Base):
     recommendation_label: Mapped[str] = mapped_column(String(80), default="candidate")
     score_total: Mapped[float | None] = mapped_column(Float, nullable=True)
     score_breakdown: Mapped[dict[str, float]] = mapped_column(JSONB, default=dict)
+    score_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
@@ -344,6 +350,53 @@ class PromptVariant(Base):
     saved_prompts: Mapped[list["SavedPrompt"]] = relationship(back_populates="prompt")
     embeddings: Mapped[list["PromptEmbedding"]] = relationship(back_populates="prompt_variant")
 
+    @property
+    def platform_fit_rating(self) -> float | None:
+        value = (self.score_metadata or {}).get("platform_fit_rating")
+        return float(value) if value is not None else None
+
+    @property
+    def platform_fit_breakdown(self) -> dict[str, float]:
+        return dict((self.score_metadata or {}).get("platform_fit_breakdown") or {})
+
+    @property
+    def recommendation_summary(self) -> str | None:
+        value = (self.score_metadata or {}).get("recommendation_summary")
+        return str(value) if value is not None else None
+
+    @property
+    def why_this_variant(self) -> str | None:
+        value = (self.score_metadata or {}).get("why_this_variant")
+        return str(value) if value is not None else None
+
+    @property
+    def assumption_notes(self) -> list[str]:
+        return list((self.score_metadata or {}).get("assumption_notes") or [])
+
+    @property
+    def modification_audit_trail(self) -> list[dict[str, Any]]:
+        return list((self.score_metadata or {}).get("modification_audit_trail") or [])
+
+    @property
+    def rules_matched(self) -> list[dict[str, Any]]:
+        return list((self.score_metadata or {}).get("rules_matched") or [])
+
+    @property
+    def user_trait_alignment(self) -> list[dict[str, Any]]:
+        return list((self.score_metadata or {}).get("user_trait_alignment") or [])
+
+    @property
+    def optimization_paths(self) -> list[dict[str, Any]]:
+        return list((self.score_metadata or {}).get("optimization_paths") or [])
+
+    @property
+    def recommended_actions(self) -> list[dict[str, Any]]:
+        return list((self.score_metadata or {}).get("recommended_actions") or [])
+
+    @property
+    def scorer_metadata(self) -> dict[str, Any]:
+        return dict((self.score_metadata or {}).get("scorer_metadata") or {})
+
 
 class PromptScore(Base):
     __tablename__ = "prompt_scores"
@@ -354,9 +407,29 @@ class PromptScore(Base):
     score_breakdown: Mapped[dict[str, float]] = mapped_column(JSONB, default=dict)
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     scorer_version: Mapped[str] = mapped_column(String(80), default="rule-based-v1")
+    scorer_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     prompt_variant: Mapped[PromptVariant] = relationship(back_populates="score_rows")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_session_event", "session_id", "event_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("problem_sessions.id"),
+        nullable=True,
+        index=True,
+    )
+    entity_type: Mapped[str] = mapped_column(String(80), index=True)
+    entity_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String(120), index=True)
+    event_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
 class SavedPrompt(Base):

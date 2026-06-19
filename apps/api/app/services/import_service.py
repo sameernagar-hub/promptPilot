@@ -1,7 +1,7 @@
 from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
-from app.db import SessionLocal
+from app.db import SessionLocal, store
 from app.models import (
     ConversationImport,
     ImportedConversation,
@@ -39,6 +39,18 @@ def create_conversation_import(payload: ConversationImportRequest) -> Conversati
     response = get_conversation_import(import_id)
     if response is None:
         raise ValueError("Import was saved but could not be reloaded")
+    store.record_audit_log(
+        event_type="conversation_import_created",
+        entity_type="conversation_import",
+        entity_id=response.id,
+        metadata={
+            "platform": response.platform,
+            "source_type": response.source_type,
+            "redaction_status": response.redaction_status,
+            "conversation_count": response.conversation_count,
+            "message_count": response.message_count,
+        },
+    )
     return response
 
 
@@ -79,6 +91,13 @@ def delete_conversation_import(import_id: str) -> ConversationImportDeleteRespon
             for conversation in row.conversations
             for message in conversation.messages
         ]
+        delete_metadata = {
+            "platform": row.platform,
+            "source_type": row.source_type,
+            "conversation_count": len(row.conversations),
+            "message_count": len(message_ids),
+            "redaction_status": row.redaction_status,
+        }
         if message_ids:
             database.execute(
                 delete(PromptingTraitSignal).where(
@@ -95,6 +114,12 @@ def delete_conversation_import(import_id: str) -> ConversationImportDeleteRespon
         database.commit()
 
     refresh_prompt_profile()
+    store.record_audit_log(
+        event_type="conversation_import_deleted",
+        entity_type="conversation_import",
+        entity_id=import_id,
+        metadata=delete_metadata,
+    )
     return ConversationImportDeleteResponse(id=import_id, deleted=True)
 
 
@@ -109,7 +134,19 @@ def reprocess_conversation_import(import_id: str) -> ConversationImportResponse 
         database.commit()
 
     refresh_prompt_profile()
-    return get_conversation_import(import_id)
+    response = get_conversation_import(import_id)
+    if response:
+        store.record_audit_log(
+            event_type="conversation_import_reprocessed",
+            entity_type="conversation_import",
+            entity_id=response.id,
+            metadata={
+                "platform": response.platform,
+                "source_type": response.source_type,
+                "message_count": response.message_count,
+            },
+        )
+    return response
 
 
 def _build_import_row(normalized: NormalizedImport, profile_id: str) -> ConversationImport:

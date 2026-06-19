@@ -882,3 +882,64 @@ This changelog records every meaningful command, check, file edit, and project-c
 - Updated Phase 15 to own dashboard-ready scoring output.
   - Added AI-formatted scoring explanations, platform-fit ratings, recommended actions, and guardrails for explaining why a variant fits the selected platform, including Claude versus OpenAI/ChatGPT.
 - Updated `EXECUTION_LOG.md`, `README.md`, `execution-reports/README.md`, `execution-reports/CURRENT_STATUS.md`, `execution-reports/01-raw-materials.md`, `execution-reports/phases/phase-14-evaluation-privacy-production-readiness.md`, and `execution-reports/phases/phase-15-knowledge-rag-dspy-agent-tracks.md`.
+
+### Phase 14 And Phase 15 Maximum Value Minimalist UX Documentation
+
+- Updated Phase 14 documentation to require frontend-ready backend metadata for Phase 15.
+  - Added modification audit trails, skipped-question assumption sources, platform-fit breakdowns, matched rules, user-trait alignment, and optimization paths to the planned live pipeline payload.
+  - Added dynamic evaluation criteria for platform-fit granularity and backend value exposure.
+- Updated Phase 15 documentation with the Maximum Value and Minimalist UX constraints.
+  - Added explicit backend value exposure requirements for modification audit trails, platform-specific fit granularity, and analytical reasoning metadata.
+  - Added strict progressive-disclosure guardrails: zero-clutter default post-execution view, advanced analysis behind compact interactions, and a low-profile optimization HUD with concrete micro-actions.
+- Documentation-only update. No application code, configuration, or generated runtime assets were changed.
+- Updated `EXECUTION_LOG.md`, `execution-reports/README.md`, `execution-reports/CURRENT_STATUS.md`, `execution-reports/phases/phase-14-evaluation-privacy-production-readiness.md`, and `execution-reports/phases/phase-15-knowledge-rag-dspy-agent-tracks.md`.
+
+### Phase 14 Execution Started
+
+- Implemented the first Phase 14 backend slice.
+  - Added `display_name`, `primary_ai_platform`, `rules_accepted`, session metadata, and `ended_at` fields to problem sessions.
+  - Added local schema bootstrap columns for session profile data, prompt variant metadata, and prompt score metadata.
+  - Added `POST /sessions/{session_id}/end`.
+  - Required display name, primary AI platform, and rules acceptance when creating new sessions.
+  - Added deterministic misuse guardrails with safe redirects.
+  - Replaced the prompt scorer with Phase 14 dimensions for input-to-contract improvement, contract completeness, assumption handling, domain accuracy, clarification value, platform fit, platform-fit granularity, backend value exposure, safety/privacy integrity, and user actionability.
+  - Added frontend-ready metadata for modification audit trails, skipped-question assumption sources, platform-fit breakdowns, matched rules, user-trait alignment, optimization paths, recommended actions, and scorer metadata.
+  - Preserved deterministic scoring as the fallback and records whether local Ollama is reachable.
+- Implemented the first Phase 14 frontend slice.
+  - Added required workspace onboarding with display name, primary AI platform, and rules acceptance.
+  - Added ChatGPT, Claude, Grok, Perplexity, Gemini, Copilot, Cursor, Codex, and Other as onboarding platform options.
+  - Stored the active session profile in local storage until End Session.
+  - Added Start New Session and End Session controls.
+  - Removed the seeded sample prompt shortcut from the default workspace path.
+  - Kept evaluation details secondary behind a collapsed details panel.
+  - Added guardrail-blocked request messaging.
+- Verification.
+  - `uv --directory apps/api run python -m compileall app` passed.
+  - SQLAlchemy mapper configuration loaded 21 mappers.
+  - FastAPI TestClient smoke passed for session creation, `run-pipeline` evaluation metadata, and guardrail blocking.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed.
+- Updated `apps/api/README.md`, `apps/web/README.md`, `execution-reports/README.md`, `execution-reports/CURRENT_STATUS.md`, and `execution-reports/phases/phase-14-evaluation-privacy-production-readiness.md`.
+
+### Phase 14 Execution Completed
+
+- Completed the Phase 14 backend execution.
+  - Added persistent audit logs for session lifecycle, prompt generation, prompt scoring, scorer runs, model-run previews, guardrail blocks, import create/reprocess/delete, and profile reset.
+  - Added session export/delete endpoints and profile export/reset endpoints.
+  - Wired local Ollama `llama3.1:8b` scoring into the live scorer with validated JSON parsing, blended model/deterministic scores, visible scorer metadata, and deterministic fallback behavior.
+  - Added privacy-safe deletion completion counts for session data and derived profile data.
+- Completed the Phase 14 frontend execution.
+  - Added low-profile session export/delete controls.
+  - Added profile export/delete controls.
+  - Added a shared app shell for profile, imports, library, and settings, plus matching workspace/onboarding footer treatment.
+  - Removed remaining raw/demo-facing copy from the default workspace path.
+- Added Phase 14 regression coverage under `evals/promptfoo`.
+  - The local regression runner covers guardrails, skipped-question assumptions, platform-fit granularity, audit logs, export/delete, import redaction/delete, and profile export/reset.
+- Verification.
+  - `uv --directory apps/api run python -m compileall app` passed.
+  - Direct local Ollama scorer verification produced `phase14-ollama-blended-v1` metadata with `ollama_status: used`.
+  - `uv --directory apps/api run python ..\..\evals\promptfoo\phase14_regression.py` passed.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed.
+  - `git diff --check` passed with line-ending warnings only.
+- Updated `EXECUTION_LOG.md`, `execution-reports/README.md`, `execution-reports/CURRENT_STATUS.md`, and `execution-reports/phases/phase-14-evaluation-privacy-production-readiness.md` to mark Phase 14 complete and make Phase 15 the next recommended step.

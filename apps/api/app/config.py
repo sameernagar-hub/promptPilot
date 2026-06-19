@@ -22,6 +22,7 @@ class Settings:
     )
     llm_provider: str = getenv("LLM_PROVIDER", "ollama")
     ollama_base_url: str = getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    ollama_scorer_timeout_seconds: float = float(getenv("OLLAMA_SCORER_TIMEOUT_SECONDS", "180"))
     default_model: str = getenv("DEFAULT_MODEL", "ollama/llama3.1:8b")
     allowed_origins: tuple[str, ...] = _csv_env(
         getenv(

@@ -11,6 +11,7 @@ from app.schemas import (
     RefinementMode,
 )
 from app.services.classifier import classify_problem
+from app.services.guardrails import evaluate_guardrails
 from app.services.profile_analyzer import get_prompt_profile
 from app.services.prompt_generator import choose_prompt_strategies, generate_prompt_variants
 from app.services.prompt_scorer import score_prompt_variants
@@ -58,6 +59,31 @@ def run_prompt_engine(
     mode: RefinementMode = "refinement",
 ) -> PromptEngineRunResponse:
     timeline: list[str] = []
+    guardrail = evaluate_guardrails(session.raw_input)
+    if guardrail.blocked:
+        classification = classification_for_session(session)
+        session.detected_domain = classification.domain
+        session.detected_intent = classification.intent
+        session.risk_level = classification.risk_level
+        session.classification = classification.model_dump()
+        session.touch("guardrail_blocked")
+        session = store.upsert_session(session)
+        timeline.append("guardrail_blocked")
+        return PromptEngineRunResponse(
+            session_id=session.id,
+            mode=mode,
+            classification=classification,
+            needs_clarification=False,
+            questions=[],
+            prompts=[],
+            recommended_prompt_id=None,
+            assumptions=[],
+            revisions=_revision_responses(session.id),
+            timeline=timeline,
+            guardrail_status="blocked",
+            guardrail_message=guardrail.message,
+            safe_redirect=guardrail.safe_redirect,
+        )
 
     session.user_settings = settings.model_dump()
     classification = classification_for_session(session)
@@ -88,7 +114,8 @@ def run_prompt_engine(
         classification,
         profile_traits=profile_traits,
     )
-    assumptions = _assumptions_for_session(session)
+    assumption_sources = _assumption_sources_for_session(session)
+    assumptions = [item["assumption"] for item in assumption_sources]
 
     if mode == "refinement" and clarify_needed:
         session.touch("clarification_pending")
@@ -105,6 +132,7 @@ def run_prompt_engine(
             assumptions=assumptions,
             revisions=_revision_responses(session.id),
             timeline=timeline,
+            guardrail_status="passed",
         )
 
     strategies = choose_prompt_strategies(session, settings, clarify_needed)
@@ -121,6 +149,10 @@ def run_prompt_engine(
         needs_clarification=clarify_needed,
         missing_context_count=len(assumptions),
         recommendation_notes=_recommendation_notes(session, profile_traits),
+        classification=classification,
+        assumption_sources=assumption_sources,
+        profile_traits=profile_traits,
+        session_profile=_session_profile_metadata(session),
     )
     for prompt in scored:
         store.upsert_prompt(prompt)
@@ -158,7 +190,12 @@ def run_prompt_engine(
                         if question.answer_state == "skipped"
                     ],
                     "assumptions": assumptions,
+                    "assumption_sources": assumption_sources,
                     "profile_traits": _profile_trait_metadata(profile_traits),
+                    "session_profile": _session_profile_metadata(session),
+                    "scorer_metadata": recommended_prompt.scorer_metadata,
+                    "modification_audit_trail": recommended_prompt.modification_audit_trail,
+                    "optimization_paths": recommended_prompt.optimization_paths,
                 },
             )
         )
@@ -179,6 +216,7 @@ def run_prompt_engine(
         assumptions=assumptions,
         revisions=_revision_responses(session.id),
         timeline=timeline,
+        guardrail_status="passed",
     )
 
 
@@ -198,8 +236,18 @@ def _previous_recommended_prompt(session: ProblemSession) -> PromptVariant | Non
 
 
 def _assumptions_for_session(session: ProblemSession) -> list[str]:
+    return [item["assumption"] for item in _assumption_sources_for_session(session)]
+
+
+def _assumption_sources_for_session(session: ProblemSession) -> list[dict]:
     return [
-        f"{question.question_key.replace('_', ' ')} is unspecified"
+        {
+            "question_id": question.question_key,
+            "question": question.question,
+            "state": question.answer_state,
+            "assumption": f"{question.question_key.replace('_', ' ')} is unspecified",
+            "reason": question.reason,
+        }
         for question in session.question_rows
         if question.required and question.answer_state in {"skipped", "unanswered"}
     ]
@@ -316,3 +364,11 @@ def _revision_responses(session_id: str) -> list[PromptRevisionResponse]:
         PromptRevisionResponse.model_validate(revision)
         for revision in store.list_prompt_revisions(session_id)[:5]
     ]
+
+
+def _session_profile_metadata(session: ProblemSession) -> dict:
+    return {
+        "display_name": session.display_name,
+        "primary_ai_platform": session.primary_ai_platform,
+        "rules_accepted": session.rules_accepted,
+    }

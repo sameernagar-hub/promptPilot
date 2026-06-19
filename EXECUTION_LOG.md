@@ -817,9 +817,17 @@ raw user request
 -> clarifying questions, answers, skipped questions, and assumptions
 -> platform-aware prompt contract generation
 -> dynamic local evaluator scoring through Ollama llama3.1:8b
--> normalized score breakdown, recommendation, explanation, and recommended actions
+-> normalized score breakdown, recommendation, explanation, modification rationale, platform-fit breakdown, and recommended actions
 -> persisted prompt score records and dashboard-ready API payload
 ```
+
+Pipeline metadata contract for Phase 15 UX:
+
+- Return a modification audit trail that records why the backend altered, expanded, constrained, or reformatted the user's raw request.
+- Include skipped-question assumption metadata that maps each skipped required question to the explicit assumption injected into the final prompt.
+- Include platform-fit breakdown metadata that can compare selected-platform fit against relevant target architectures such as Codex, Gemini, Claude, ChatGPT/OpenAI, Cursor, and generic assistants.
+- Include analytical reasoning metadata in safe, summarized fields such as `rules_matched`, `user_trait_alignment`, `domain_confirmation_influence`, `assumption_sources`, and `optimization_paths`.
+- Keep this metadata frontend-ready, compact, and validated so Phase 15 can place it behind progressive disclosure without exposing raw evaluator prompts, chain-of-thought, or internal debug traces.
 
 Dynamic session evaluation criteria:
 
@@ -829,6 +837,8 @@ Dynamic session evaluation criteria:
 - `domain_accuracy`: whether detected, confirmed, or corrected domain context is reflected accurately in the prompt and scoring explanation.
 - `clarification_value`: whether clarifying questions reduce ambiguity and improve the recommended variant.
 - `platform_fit`: whether the prompt is shaped for the selected target platform, including Claude, OpenAI/ChatGPT, Codex, Gemini, Cursor, or generic assistants.
+- `platform_fit_granularity`: whether the response can explain the prompt's distinct fit for each relevant target LLM architecture rather than hiding platform behavior in one opaque score.
+- `backend_value_exposure`: whether the response makes PromptPilot's improvements visible through concise audit, rules, trait-alignment, and optimization-path metadata.
 - `safety_privacy_integrity`: whether sensitive requests, secrets, imported content, and misuse attempts are handled with the correct warnings, redaction, or refusal/redirect behavior.
 - `user_actionability`: whether the recommended variant and explanation help the user understand what to do next.
 
@@ -915,26 +925,27 @@ Security and safety:
 
 Planned work:
 
-- [ ] Build the session onboarding screen and session store.
-- [ ] Add display-name and AI-platform fields to the session model.
-- [ ] Add the supported AI-platform list with an Other option.
-- [ ] Add rules acceptance and guardrail checks before entering the workspace.
-- [ ] Add Start New Session and End Session flows.
-- [ ] Remove precreated examples and demo data from the default production path.
-- [ ] Personalize workspace, profile, refinement, and Q&A copy around the active session.
-- [ ] Extend `POST /sessions/{session_id}/run-pipeline` so live scoring is part of the backend workflow instead of a detached benchmark step.
-- [ ] Add dynamic scoring dimensions for input-to-contract improvement, contract completeness, assumption handling, domain accuracy, clarification value, platform fit, safety/privacy integrity, and user actionability.
-- [ ] Wire local `Ollama` with `llama3.1:8b` into the live scorer for generated prompt variants.
-- [ ] Normalize and validate AI-generated score output before it is stored in `prompt_scores`, prompt variant metadata, or API responses.
-- [ ] Preserve current deterministic scoring behavior as an explicit fallback with visible scorer metadata.
-- [ ] Add promptfoo scenarios for diverse user requests, skipped questions, domain correction, platform-specific recommendations, sensitive prompts, redaction, and profile-trait influence.
-- [ ] Use promptfoo assertions to prevent regressions in score schema, ranking, assumptions, domain fit, platform fit, safety behavior, and recommendation explanations.
-- [ ] Simplify score-heavy UI so user-facing guidance is readable before raw metrics.
-- [ ] Ensure all generated outputs pass through the AI formatter before display.
-- [ ] Add tests for privacy-critical behaviors.
-- [ ] Define session, auth, and ownership boundaries before real chat storage.
-- [ ] Add export and delete flows for profile data.
-- [ ] Add audit logs for model runs, imports, and evaluator/scorer runs.
+- [x] Build the session onboarding screen and session store.
+- [x] Add display-name and AI-platform fields to the session model.
+- [x] Add the supported AI-platform list with an Other option.
+- [x] Add rules acceptance and guardrail checks before entering the workspace.
+- [x] Add Start New Session and End Session flows.
+- [x] Remove precreated examples and demo data from the default production path.
+- [x] Personalize workspace, profile, refinement, and Q&A copy around the active session.
+- [x] Extend `POST /sessions/{session_id}/run-pipeline` so live scoring is part of the backend workflow instead of a detached benchmark step.
+- [x] Add dynamic scoring dimensions for input-to-contract improvement, contract completeness, assumption handling, domain accuracy, clarification value, platform fit, safety/privacy integrity, and user actionability.
+- [x] Add Phase 15-ready metadata fields for modification audit trails, skipped-question assumption sources, platform-fit breakdowns, matched rules, user-trait alignment, and optimization paths.
+- [x] Wire local `Ollama` with `llama3.1:8b` into the live scorer for generated prompt variants.
+- [x] Normalize and validate AI-generated score output before it is stored in `prompt_scores`, prompt variant metadata, or API responses.
+- [x] Preserve current deterministic scoring behavior as an explicit fallback with visible scorer metadata.
+- [x] Add promptfoo scenarios for diverse user requests, skipped questions, domain correction, platform-specific recommendations, sensitive prompts, redaction, and profile-trait influence.
+- [x] Use promptfoo assertions to prevent regressions in score schema, ranking, assumptions, domain fit, platform fit, safety behavior, and recommendation explanations.
+- [x] Simplify score-heavy UI so user-facing guidance is readable before raw metrics.
+- [x] Ensure generated and interpreted outputs use product-facing AI formatting before display.
+- [x] Add tests for privacy-critical behaviors.
+- [x] Define session, auth, and ownership boundaries before real chat storage.
+- [x] Add export and delete flows for session and profile data.
+- [x] Add audit logs for model runs, imports, and evaluator/scorer runs.
 
 Verification:
 
@@ -950,6 +961,8 @@ Verification:
 - `POST /sessions/{session_id}/run-pipeline` returns live evaluation fields for each generated variant.
 - Dynamic scores measure prompt quality improvement, contract completeness, assumptions, domain accuracy, and platform fit.
 - Skipped clarifying questions are reflected as assumptions and affect scoring confidence or specificity.
+- Skipped-question metadata maps each injected assumption back to the missing question or context source.
+- Live pipeline responses include modification rationale, rules matched, user-trait alignment, optimization paths, and platform-fit breakdowns for Phase 15 progressive disclosure.
 - Confirmed or corrected domains improve domain-fit scoring and explanation text.
 - Local `Ollama` with `llama3.1:8b` can score live variants in local development.
 - Scorer metadata identifies whether `Ollama` or the deterministic fallback produced the score.
@@ -959,15 +972,15 @@ Verification:
 - Evaluation suite runs locally.
 - Privacy-critical behaviors have tests.
 - Session, auth, and ownership boundaries are explicit before storing real user chat history.
-- Users can export and delete their profile data.
-- Audit logs exist for imports and model runs.
+- Users can export and delete their session and profile data.
+- Audit logs exist for imports, model runs, and scorer runs.
 - Existing Phase 0 through Phase 13 behavior remains intact, including local Postgres/pgvector schemas and `trait_detector_v1` signal generation.
 
 ---
 
 ## Phase 15: Codebase Cleanup, AI-Formatted Outputs, Knowledge Support, and Pre-Deploy Polish
 
-Goal: Prepare PromptPilot for Phase 16 Vercel deployment by cleaning the codebase, simplifying the product surface, documenting the architecture, and ensuring AI-generated scoring explanations, platform-fit ratings, and recommended actions are cleanly formatted for the Next.js dashboards.
+Goal: Prepare PromptPilot for Phase 16 Vercel deployment by cleaning the codebase, simplifying the product surface, documenting the architecture, and ensuring AI-generated scoring explanations, platform-fit ratings, backend modification rationale, and recommended actions are cleanly formatted for minimalist Next.js dashboards.
 
 Codebase cleanup:
 
@@ -999,10 +1012,29 @@ Minimal UX and session continuity:
 - Hide raw scoring figures, traces, and implementation details behind optional expanded views.
 - Keep mobile, tablet, and desktop layouts polished before deployment.
 
+Maximum value and minimalist UX requirements:
+
+Explicit backend value exposure:
+
+- Add a modification audit trail requirement for the post-execution UI: every backend alteration to the user's raw request must have a concise, inspectable explanation of why it happened.
+- When a user skips a clarifying question, the UI must explicitly flag the corresponding injected assumption, such as showing that an assumption was added because required context was missing.
+- Surface platform-fit granularity instead of a single generic score: the UI must explain how the final prompt strategy optimizes differently for target LLM architectures such as Codex, Gemini, Claude, ChatGPT/OpenAI, Cursor, and generic assistants.
+- Require platform-fit details to show distinct ratings or behaviors where relevant, such as Codex emphasizing repository context and verification, Gemini supporting broad or multimodal context, and Claude favoring long-context structure and nuance.
+- Expose analytical reasoning metadata from the pipeline in a user-safe form, including matched rules, user-trait alignment, skipped-question assumptions, confirmed or corrected domain influence, and specific optimization paths taken.
+- Keep all metadata explanatory and product-facing; never surface raw chain-of-thought, evaluator prompts, unvalidated model chatter, or internal debug traces.
+
+Progressive disclosure guardrails:
+
+- Preserve a zero-clutter default: the first post-execution state must keep visual focus on the primary recommended prompt output.
+- Move scoring explanations, modification logs, platform metrics, rule matches, trait-alignment details, and recommended next steps behind progressive disclosure controls such as hoverable tooltips, collapsible accordions, drawers, or compact tabs.
+- Provide an actionable optimization HUD as a low-profile recommendation area, not a wall of text.
+- Express high-leverage next steps as concrete micro-actions, such as `[+] Add Source Constraints` or `[+] Add Audience Detail`, with expected impact when available, such as improving platform fit or reducing assumption risk.
+- Keep the HUD secondary to the generated prompt and avoid generic recommendation blocks that compete with the main output.
+
 AI-formatted scoring output:
 
 - Ensure AI-generated scoring explanations, platform-fit ratings, and recommended actions are cleanly formatted and safe to surface in the Next.js workspace, comparison view, profile dashboard, and future evaluation dashboards.
-- Define a frontend-ready scoring contract that can include `score_total`, `score_breakdown`, `platform_fit_rating`, `recommendation_label`, `recommendation_summary`, `why_this_variant`, `assumption_notes`, `recommended_actions`, and `scorer_metadata`.
+- Define a frontend-ready scoring contract that can include `score_total`, `score_breakdown`, `platform_fit_rating`, `platform_fit_breakdown`, `recommendation_label`, `recommendation_summary`, `why_this_variant`, `assumption_notes`, `modification_audit_trail`, `rules_matched`, `user_trait_alignment`, `optimization_paths`, `recommended_actions`, and `scorer_metadata`.
 - Keep score explanations short, specific, and user-facing. They should explain why a variant is recommended for the selected platform, such as Claude versus OpenAI/ChatGPT, without exposing raw evaluator prompts or model chatter.
 - Translate evaluation metrics into clear feedback about how the user's raw request improved, what assumptions remain, which domain details matter, and what action the user should take next.
 - Make platform-fit guidance explicit: explain why a Claude prompt may emphasize long-context structure and nuance, why an OpenAI/ChatGPT prompt may emphasize portable explicit instructions, why a Codex prompt may emphasize repository context and verification, and why generic prompts avoid provider-specific assumptions.
@@ -1049,10 +1081,14 @@ Verification:
 - `README.md`, `apps/api/README.md`, and `apps/web/README.md` accurately explain architecture, setup, functionality, sessions, guardrails, and deployment.
 - Current status, changelog, and phase docs do not conflict with the Phase 16 Vercel deployment plan.
 - The app remains minimal, responsive, and readable on mobile, tablet, and desktop.
+- The first post-execution view is zero-clutter and keeps primary focus on the recommended prompt output.
 - Session state sticks until the user explicitly ends it.
 - No seeded demo examples or precreated user data appear in a new production session.
 - All user-facing interpreted outputs are AI-formatted and personalized.
-- Scoring explanations, platform-fit ratings, and recommended actions are formatted for frontend display.
+- Scoring explanations, platform-fit ratings, modification audit trails, platform-fit breakdowns, and recommended actions are formatted for frontend display.
+- Skipped clarifying questions visibly map to injected assumptions in the advanced details UI.
+- Rules matched, user-trait alignment, and optimization paths are available behind progressive disclosure without exposing raw internals.
+- The optimization HUD presents concrete micro-actions instead of generic explanatory text blocks.
 - Recommended variants explain why they fit the selected target platform, including Claude versus OpenAI/ChatGPT-style differences when relevant.
 - Dashboard copy translates scores into actionable user feedback instead of exposing raw evaluator internals.
 - Output guardrails prevent raw JSON, chain-of-thought, unvalidated evaluator text, raw `Problem: ...` echoes, and confusing score dumps from appearing in the UI.
@@ -1146,7 +1182,7 @@ Use this checklist when starting implementation:
 - [x] Add clarification-first prompt refinement.
 - [x] Add advanced controls and platform-aware prompt output.
 - [x] Add profile Q&A dashboard.
-- [ ] Add session onboarding, live evaluation, privacy, and production readiness.
+- [x] Add session onboarding, live evaluation, privacy, and production readiness.
 - [ ] Add codebase cleanup, AI-formatted scoring outputs, knowledge support, RAG, DSPy, and agent tracks as support systems.
 - [ ] Install Vercel CLI and deploy the complete public production application on Vercel.
 
@@ -1154,8 +1190,8 @@ Use this checklist when starting implementation:
 
 ## Current Status
 
-Status: Phase 13 profile Q&A and UX dashboard complete.
+Status: Phase 14 session onboarding, live evaluation, privacy, and production readiness are complete.
 
 Next recommended step:
 
-Start Phase 14: Session Onboarding, Live Evaluation, Privacy, and Production Readiness.
+Begin Phase 15: codebase cleanup, AI-formatted scoring output review, knowledge support, RAG, DSPy, agent-track support systems, minimalist UX polish, documentation cleanup, and pre-deploy hardening.

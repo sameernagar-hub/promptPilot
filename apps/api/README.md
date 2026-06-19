@@ -19,6 +19,7 @@ Phase 3 endpoints:
 - `GET /health`
 - `POST /sessions`
 - `GET /sessions/{session_id}`
+- `POST /sessions/{session_id}/end`
 - `POST /sessions/{session_id}/classify`
 - `POST /sessions/{session_id}/domain-confirmation`
 - `POST /sessions/{session_id}/questions`
@@ -154,4 +155,31 @@ Invoke-RestMethod `
 - `POST /profile/questions` answers from stored traits, signals, sessions, imports, and revisions with evidence references.
 - `PATCH /profile/observations/{observation_id}` stores user corrections.
 - `DELETE /profile/observations/{observation_id}` hides observations through refresh-safe overrides.
+- `GET /profile/export?format=markdown|json` exports derived profile data.
+- `DELETE /profile/data` clears derived profile traits, signals, platform preferences, and observation overrides while preserving source sessions/imports.
 - `ALLOWED_ORIGINS` configures CORS for local dev, local production checks, and hosted frontend origins.
+
+Phase 14 session onboarding, guardrails, live evaluation, privacy, and audit behavior:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/sessions `
+  -ContentType 'application/json' `
+  -Body '{"raw_input":"My React app saves data but the UI stays stale","display_name":"Nagar","primary_ai_platform":"codex","rules_accepted":true,"settings":{"target_platform":"codex"}}'
+```
+
+- `POST /sessions` now requires `display_name`, `primary_ai_platform`, and `rules_accepted: true`.
+- Supported primary AI platforms are ChatGPT, Claude, Grok, Perplexity, Gemini, Copilot, Cursor, Codex, and Other.
+- `problem_sessions` stores the session profile, rules acceptance, session metadata, and `ended_at`.
+- `POST /sessions/{session_id}/end` marks a session as ended.
+- `GET /sessions/{session_id}/export?format=markdown|json` exports session request, questions, prompts, scores, and audit events.
+- `DELETE /sessions/{session_id}/data` removes session-scoped questions, prompts, scores, revisions, saved prompts, embeddings, and audit events, then records a non-sensitive deletion completion event.
+- `GET /sessions/{session_id}/audit-logs` returns session audit events.
+- `run-pipeline` returns Phase 14 scoring dimensions: input-to-contract improvement, contract completeness, assumption handling, domain accuracy, clarification value, platform fit, platform-fit granularity, backend value exposure, safety/privacy integrity, and user actionability.
+- Prompt variant responses include modification audit trails, skipped-question assumption notes, platform-fit breakdowns, matched rules, trait alignment, optimization paths, recommended actions, and scorer metadata.
+- Prompt metadata is stored on prompt variants and scorer metadata is stored on prompt scores.
+- Local Ollama `llama3.1:8b` scoring is wired into the live scorer; model scores are validated and blended with deterministic scores when available.
+- Deterministic scoring remains the stable fallback and records why fallback was used.
+- Deterministic guardrails block clear misuse requests and return a short safe redirect.
+- Import create/reprocess/delete, model-run previews, scorer runs, session lifecycle events, and profile reset are audit logged.

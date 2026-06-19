@@ -1,22 +1,29 @@
 "use client";
 
 import {
+  Bot,
   Check,
+  ChevronDown,
   Copy,
   FileText,
   GitCompare,
   History,
   ListChecks,
+  LogOut,
   Moon,
   Palette,
   Pencil,
   Play,
+  Plus,
   RefreshCw,
   Save,
   Settings2,
+  ShieldCheck,
   SkipForward,
   Sparkles,
   Sun,
+  Trash2,
+  User,
   Zap,
 } from "lucide-react";
 import Link from "next/link";
@@ -24,9 +31,13 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  ActiveSessionProfile,
   confirmDomain,
   createSession,
   defaultSettings,
+  deleteSessionData,
+  endSession,
+  exportSession,
   getHealth,
   getProfile,
   getSession,
@@ -36,6 +47,7 @@ import {
   PromptSettings,
   PromptVariant,
   PromptRevision,
+  SessionAiPlatform,
   runPipeline,
   runPrompt,
   savePrompt,
@@ -52,16 +64,35 @@ type ThemeName = "sage" | "ink" | "paper";
 type SettingKey = keyof PromptSettings;
 type QuestionStates = Record<string, ClarifyingQuestionState>;
 
-const sampleProblems = [
-  "I need my bike fixed",
-  "My React app saves successfully but the UI stays stale after clicking save.",
-  "I need a better prompt for researching competitors in a new market.",
+const activeSessionStorageKey = "promptpilot.activeSessionProfile.v1";
+
+const onboardingPlatforms: { value: SessionAiPlatform; label: string }[] = [
+  { value: "chatgpt", label: "ChatGPT" },
+  { value: "claude", label: "Claude" },
+  { value: "grok", label: "Grok" },
+  { value: "perplexity", label: "Perplexity" },
+  { value: "gemini", label: "Gemini" },
+  { value: "copilot", label: "Copilot" },
+  { value: "cursor", label: "Cursor" },
+  { value: "codex", label: "Codex" },
+  { value: "other", label: "Other" },
 ];
 
 const settingOptions: {
   [Key in SettingKey]: readonly PromptSettings[Key][];
 } = {
-  target_platform: ["generic", "codex", "claude", "chatgpt", "gemini", "cursor"],
+  target_platform: [
+    "generic",
+    "codex",
+    "claude",
+    "chatgpt",
+    "gemini",
+    "cursor",
+    "grok",
+    "perplexity",
+    "copilot",
+    "other",
+  ],
   detail_level: ["balanced", "concise", "exhaustive"],
   length: ["short", "medium", "deep"],
   skill_level: ["beginner", "practical", "expert"],
@@ -150,6 +181,9 @@ export function PromptWorkspace({
 }: WorkspaceProps) {
   const [theme, setTheme] = useState<ThemeName>("sage");
   const styles = themeStyles[theme];
+  const [activeSession, setActiveSession] = useState<ActiveSessionProfile | null>(() =>
+    loadActiveSessionProfile(),
+  );
   const [problem, setProblem] = useState("");
   const [settings, setSettings] = useState<PromptSettings>(defaultSettings);
   const [refinementMode, setRefinementMode] = useState<RefinementMode>("refinement");
@@ -199,6 +233,19 @@ export function PromptWorkspace({
         setProblem(session.raw_input);
         setSessionProblem(session.raw_input);
         setSettings({ ...defaultSettings, ...session.user_settings });
+        if (session.display_name && session.primary_ai_platform && session.rules_accepted) {
+          const restored = {
+            display_name: session.display_name,
+            primary_ai_platform: normalizeSessionPlatform(session.primary_ai_platform),
+            rules_accepted: session.rules_accepted,
+            started_at:
+              typeof session.session_metadata.started_at === "string"
+                ? session.session_metadata.started_at
+                : session.created_at,
+          };
+          setActiveSession(restored);
+          saveActiveSessionProfile(restored);
+        }
         const loadedAnswers: Record<string, string> = { ...(session.answers ?? {}) };
         const loadedStates: QuestionStates = {};
         for (const question of session.clarifying_questions ?? []) {
@@ -273,6 +320,10 @@ export function PromptWorkspace({
       setError("Enter a problem first.");
       return;
     }
+    if (!activeSession?.rules_accepted) {
+      setError("Start a session and accept the rules first.");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -280,7 +331,7 @@ export function PromptWorkspace({
     try {
       const shouldCreateSession = !sessionId || problem.trim() !== sessionProblem;
       const session = shouldCreateSession
-        ? await createSession(problem.trim(), settings)
+        ? await createSession(problem.trim(), settings, activeSession)
         : { id: sessionId };
       const submittedAnswers = shouldCreateSession ? {} : nextAnswers;
       const submittedStates = shouldCreateSession ? {} : nextQuestionStates;
@@ -375,16 +426,91 @@ export function PromptWorkspace({
     setStatus("Copied");
   }
 
-  function resetWithSample() {
-    setProblem(sampleProblems[Math.floor(Math.random() * sampleProblems.length)]);
+  async function exportCurrentSession() {
+    if (!sessionId) {
+      setError("Generate a session before exporting.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const exported = await exportSession(sessionId, "markdown");
+      const blob = new Blob([exported.content], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = exported.filename;
+      link.click();
+      URL.revokeObjectURL(url);
+      setStatus("Exported");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Export failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteCurrentSessionData() {
+    if (!sessionId) {
+      setError("Generate a session before deleting data.");
+      return;
+    }
+    const confirmed = window.confirm(
+      "Delete this session and its generated prompts, answers, scores, and audit events?",
+    );
+    if (!confirmed) {
+      return;
+    }
+    const deletingSessionId = sessionId;
+    setLoading(true);
+    setError("");
+    try {
+      const result = await deleteSessionData(deletingSessionId);
+      startNewSession();
+      const deletedItems = Object.values(result.deleted_counts).reduce(
+        (total, count) => total + count,
+        0,
+      );
+      setStatus(`Deleted ${deletedItems} records`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Delete failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function startNewSession() {
     setSessionId(null);
     setSessionProblem("");
+    setProblem("");
     setPipeline(null);
     setAnswers({});
     setQuestionStates({});
     setSelectedPromptId(null);
     setRunOutput("");
-    setStatus("Idle");
+    setCustomDomain("");
+    setSettings({
+      ...defaultSettings,
+      target_platform: activeSession
+        ? platformToTarget(activeSession.primary_ai_platform)
+        : defaultSettings.target_platform,
+    });
+    setStatus("New session");
+    setError("");
+  }
+
+  async function endActiveSession() {
+    const endingSessionId = sessionId;
+    clearActiveSessionProfile();
+    setActiveSession(null);
+    startNewSession();
+    if (endingSessionId) {
+      try {
+        await endSession(endingSessionId);
+      } catch {
+        // Local session cleanup should still succeed if the API is unavailable.
+      }
+    }
   }
 
   const healthClass =
@@ -392,19 +518,44 @@ export function PromptWorkspace({
       ? "bg-emerald-500"
       : apiHealth === "degraded"
         ? "bg-amber-500"
-        : "bg-rose-500";
+      : "bg-rose-500";
+
+  if (!activeSession) {
+    return (
+      <SessionOnboarding
+        styles={styles}
+        theme={theme}
+        onThemeChange={setTheme}
+        onStart={(profile) => {
+          saveActiveSessionProfile(profile);
+          setActiveSession(profile);
+          setSettings((current) => ({
+            ...current,
+            target_platform: platformToTarget(profile.primary_ai_platform),
+          }));
+          setStatus("Session started");
+        }}
+      />
+    );
+  }
 
   return (
     <main className={cn("min-h-screen", styles.page)}>
       <header className={cn("border-b", styles.header)}>
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <div className={cn("flex size-9 items-center justify-center rounded-md text-white", styles.primary)}>
+            <Link
+              href="/"
+              className={cn("flex size-9 items-center justify-center rounded-md text-white", styles.primary)}
+              title="PromptPilot home"
+            >
               <Sparkles className="size-4" />
-            </div>
+            </Link>
             <div>
               <h1 className="text-lg font-semibold leading-tight">PromptPilot</h1>
-              <p className={cn("text-xs", styles.subtle)}>{status}</p>
+              <p className={cn("text-xs", styles.subtle)}>
+                {activeSession.display_name} / {optionLabel(activeSession.primary_ai_platform)} / {status}
+              </p>
             </div>
           </div>
           <nav className="flex flex-wrap items-center gap-2 text-sm">
@@ -417,6 +568,34 @@ export function PromptWorkspace({
               <span className={cn("size-2 rounded-full", healthClass)} />
               API {apiHealth}
             </span>
+            <Button type="button" size="sm" variant="outline" onClick={startNewSession}>
+              <Plus />
+              New
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={exportCurrentSession}
+              disabled={!sessionId || loading}
+            >
+              <FileText />
+              Export
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={deleteCurrentSessionData}
+              disabled={!sessionId || loading}
+            >
+              <Trash2 />
+              Delete
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={endActiveSession}>
+              <LogOut />
+              End
+            </Button>
           </nav>
         </div>
       </header>
@@ -426,16 +605,15 @@ export function PromptWorkspace({
           <div className={cardClass(styles)}>
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-sm font-semibold">Request</h2>
-              <Button type="button" size="sm" variant="outline" onClick={resetWithSample}>
-                <RefreshCw />
-                Sample
-              </Button>
+              <span className={cn("rounded-md px-2 py-1 text-xs", styles.soft)}>
+                Clean slate
+              </span>
             </div>
             <textarea
               className={cn("min-h-44 w-full resize-y rounded-md border p-3 text-sm leading-6 outline-none focus:ring-4", styles.input)}
               value={problem}
               onChange={(event) => setProblem(event.target.value)}
-              placeholder="I need my bike fixed"
+              placeholder="Describe what you want the AI to help with."
             />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button type="button" onClick={() => generate()} disabled={loading}>
@@ -511,15 +689,23 @@ export function PromptWorkspace({
         </section>
 
         <section className="space-y-4">
-          <RecommendedPrompt
-            prompt={selectedPrompt}
-            recommendedPromptId={recommendedPrompt?.id ?? null}
-            styles={styles}
-            onCopy={copySelectedPrompt}
-            onRun={runSelectedPrompt}
-            onSave={saveSelectedPrompt}
-            loading={loading}
-          />
+          {pipeline?.guardrail_status === "blocked" ? (
+            <GuardrailPanel
+              message={pipeline.guardrail_message}
+              safeRedirect={pipeline.safe_redirect}
+              styles={styles}
+            />
+          ) : (
+            <RecommendedPrompt
+              prompt={selectedPrompt}
+              recommendedPromptId={recommendedPrompt?.id ?? null}
+              styles={styles}
+              onCopy={copySelectedPrompt}
+              onRun={runSelectedPrompt}
+              onSave={saveSelectedPrompt}
+              loading={loading}
+            />
+          )}
 
           {pipeline?.revisions.length ? (
             <RevisionHistory revisions={pipeline.revisions} styles={styles} />
@@ -572,6 +758,145 @@ export function PromptWorkspace({
           </div>
         </section>
       </div>
+      <footer className={cn("border-t px-4 py-3 text-xs", styles.header, styles.subtle)}>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2">
+          <span>PromptPilot</span>
+          <span>Local-first prompt refinement, scoring, and profile controls.</span>
+        </div>
+      </footer>
+    </main>
+  );
+}
+
+function SessionOnboarding({
+  styles,
+  theme,
+  onThemeChange,
+  onStart,
+}: {
+  styles: (typeof themeStyles)[ThemeName];
+  theme: ThemeName;
+  onThemeChange: (theme: ThemeName) => void;
+  onStart: (profile: ActiveSessionProfile) => void;
+}) {
+  const [displayName, setDisplayName] = useState("");
+  const [platform, setPlatform] = useState<SessionAiPlatform>("chatgpt");
+  const [accepted, setAccepted] = useState(false);
+  const [error, setError] = useState("");
+
+  function submit() {
+    const nextName = displayName.trim();
+    if (!nextName) {
+      setError("Enter your name to start.");
+      return;
+    }
+    if (!accepted) {
+      setError("Accept the rules to start.");
+      return;
+    }
+    onStart({
+      display_name: nextName,
+      primary_ai_platform: platform,
+      rules_accepted: true,
+      started_at: new Date().toISOString(),
+    });
+  }
+
+  return (
+    <main className={cn("min-h-screen", styles.page)}>
+      <header className={cn("border-b", styles.header)}>
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className={cn("flex size-9 items-center justify-center rounded-md text-white", styles.primary)}>
+              <Sparkles className="size-4" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold leading-tight">PromptPilot</h1>
+              <p className={cn("text-xs", styles.subtle)}>Start session</p>
+            </div>
+          </div>
+          <ThemePicker theme={theme} onChange={onThemeChange} />
+        </div>
+      </header>
+
+      <section className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-5xl items-center px-4 py-8">
+        <div className={cn("mx-auto w-full max-w-xl rounded-md border p-5 shadow-sm", styles.card)}>
+          <div className="mb-5 flex items-center gap-3">
+            <div className={cn("flex size-10 items-center justify-center rounded-md text-white", styles.primary)}>
+              <ShieldCheck className="size-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold">Session Setup</h2>
+              <p className={cn("text-xs", styles.subtle)}>
+                Required before the workspace opens.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <label className="block space-y-1 text-xs font-medium">
+              <span className="flex items-center gap-2">
+                <User className="size-4" />
+                Display name
+              </span>
+              <input
+                className={cn("h-10 w-full rounded-md border px-3 text-sm outline-none focus:ring-4", styles.input)}
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                placeholder="Your name"
+              />
+            </label>
+
+            <label className="block space-y-1 text-xs font-medium">
+              <span className="flex items-center gap-2">
+                <Bot className="size-4" />
+                Primary AI platform
+              </span>
+              <select
+                className={cn("h-10 w-full rounded-md border px-3 text-sm outline-none focus:ring-4", styles.input)}
+                value={platform}
+                onChange={(event) => setPlatform(event.target.value as SessionAiPlatform)}
+              >
+                {onboardingPlatforms.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className={cn("flex items-start gap-3 rounded-md border p-3 text-sm leading-6", styles.border, styles.soft)}>
+              <input
+                className="mt-1 size-4 accent-[#1e4d45]"
+                type="checkbox"
+                checked={accepted}
+                onChange={(event) => setAccepted(event.target.checked)}
+              />
+              <span>
+                I will use PromptPilot for lawful, safe prompt improvement and avoid secrets,
+                impersonation, abuse, or harmful requests.
+              </span>
+            </label>
+
+            {error ? (
+              <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                {error}
+              </p>
+            ) : null}
+
+            <Button className="w-full" type="button" onClick={submit}>
+              <Sparkles />
+              Start Session
+            </Button>
+          </div>
+        </div>
+      </section>
+      <footer className={cn("border-t px-4 py-3 text-xs", styles.header, styles.subtle)}>
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2">
+          <span>PromptPilot</span>
+          <span>Local-first prompt refinement, scoring, and profile controls.</span>
+        </div>
+      </footer>
     </main>
   );
 }
@@ -829,15 +1154,162 @@ function RecommendedPrompt({
               {prompt.explanation}
             </p>
           ) : null}
+          {prompt.recommended_actions.length ? (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {prompt.recommended_actions.map((action) => (
+                <span
+                  key={action.id}
+                  className={cn("rounded-md border px-2 py-1 text-xs", styles.border)}
+                  title={action.impact}
+                >
+                  {action.label}
+                </span>
+              ))}
+            </div>
+          ) : null}
           <pre className="whitespace-pre-wrap break-words text-sm leading-7">
             {prompt.prompt_text}
           </pre>
+          <EvaluationDetails prompt={prompt} styles={styles} />
         </div>
       ) : (
         <div className={cn("min-h-80 rounded-md border border-dashed p-6 text-sm", styles.border, styles.subtle)}>
           No prompt generated yet.
         </div>
       )}
+    </div>
+  );
+}
+
+function GuardrailPanel({
+  message,
+  safeRedirect,
+  styles,
+}: {
+  message: string | null;
+  safeRedirect: string | null;
+  styles: (typeof themeStyles)[ThemeName];
+}) {
+  return (
+    <div className={cardClass(styles)}>
+      <div className="mb-3 flex items-center gap-2">
+        <ShieldCheck className={cn("size-4", styles.primaryText)} />
+        <h2 className="text-sm font-semibold">Request Blocked</h2>
+      </div>
+      <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+        <p>{message ?? "This request cannot be optimized as written."}</p>
+        {safeRedirect ? <p className="mt-2">{safeRedirect}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function EvaluationDetails({
+  prompt,
+  styles,
+}: {
+  prompt: PromptVariant;
+  styles: (typeof themeStyles)[ThemeName];
+}) {
+  const scorerSource =
+    typeof prompt.scorer_metadata.scorer_source === "string"
+      ? prompt.scorer_metadata.scorer_source
+      : "deterministic";
+  return (
+    <details className={cn("mt-4 rounded-md border bg-white/50", styles.border)}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-medium">
+        <span className="flex items-center gap-2">
+          <ChevronDown className="size-3" />
+          Evaluation details
+        </span>
+        <span className={styles.subtle}>{scorerSource.replaceAll("_", " ")}</span>
+      </summary>
+      <div className="space-y-3 border-t border-black/5 p-3 text-xs leading-5">
+        {prompt.why_this_variant ? (
+          <p className={styles.subtle}>{prompt.why_this_variant}</p>
+        ) : null}
+        <div className="grid gap-2 sm:grid-cols-2">
+          {Object.entries(prompt.score_breakdown).map(([key, value]) => (
+            <div key={key} className={cn("rounded-md border p-2", styles.border)}>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span>{labelize(key)}</span>
+                <span className={styles.primaryText}>{Math.round(value * 100)}</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-black/10">
+                <div
+                  className={cn("h-full rounded-full", styles.primary)}
+                  style={{ width: `${Math.round(value * 100)}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        {prompt.assumption_notes.length ? (
+          <DetailList
+            title="Assumptions"
+            items={prompt.assumption_notes.map((item) => ({
+              id: item,
+              label: item,
+              detail: "Added because required context was skipped or missing.",
+            }))}
+            styles={styles}
+          />
+        ) : null}
+        <DetailList
+          title="Platform Fit"
+          items={Object.entries(prompt.platform_fit_breakdown).map(([platform, score]) => ({
+            id: platform,
+            label: optionLabel(platform),
+            detail: `${Math.round(score * 100)} fit`,
+          }))}
+          styles={styles}
+        />
+        <DetailList
+          title="Modification Audit"
+          items={prompt.modification_audit_trail.map((item) => ({
+            id: item.id,
+            label: item.label,
+            detail: item.reason,
+          }))}
+          styles={styles}
+        />
+        <DetailList
+          title="Optimization Paths"
+          items={prompt.optimization_paths.map((item) => ({
+            id: item.id,
+            label: item.label,
+            detail: item.detail,
+          }))}
+          styles={styles}
+        />
+      </div>
+    </details>
+  );
+}
+
+function DetailList({
+  title,
+  items,
+  styles,
+}: {
+  title: string;
+  items: { id: string; label: string; detail: string }[];
+  styles: (typeof themeStyles)[ThemeName];
+}) {
+  if (!items.length) {
+    return null;
+  }
+  return (
+    <div>
+      <div className="mb-2 font-medium">{title}</div>
+      <div className="space-y-2">
+        {items.slice(0, 6).map((item) => (
+          <div key={item.id} className={cn("rounded-md border p-2", styles.border)}>
+            <div className="font-medium">{item.label}</div>
+            <div className={styles.subtle}>{item.detail}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1068,10 +1540,74 @@ function optionLabel(value: string) {
     claude: "Claude",
     gemini: "Gemini",
     cursor: "Cursor",
+    grok: "Grok",
+    perplexity: "Perplexity",
+    copilot: "Copilot",
+    generic: "Generic",
+    other: "Other",
   };
   return labels[value] ?? labelize(value);
 }
 
 function labelize(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function loadActiveSessionProfile(): ActiveSessionProfile | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    const stored = window.localStorage.getItem(activeSessionStorageKey);
+    if (!stored) {
+      return null;
+    }
+    const parsed = JSON.parse(stored) as Partial<ActiveSessionProfile>;
+    if (
+      typeof parsed.display_name !== "string" ||
+      !parsed.display_name.trim() ||
+      !parsed.rules_accepted
+    ) {
+      return null;
+    }
+    return {
+      display_name: parsed.display_name,
+      primary_ai_platform: normalizeSessionPlatform(parsed.primary_ai_platform),
+      rules_accepted: true,
+      started_at:
+        typeof parsed.started_at === "string"
+          ? parsed.started_at
+          : new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveActiveSessionProfile(profile: ActiveSessionProfile) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(activeSessionStorageKey, JSON.stringify(profile));
+}
+
+function clearActiveSessionProfile() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.removeItem(activeSessionStorageKey);
+}
+
+function normalizeSessionPlatform(value: unknown): SessionAiPlatform {
+  const valid = new Set(onboardingPlatforms.map((option) => option.value));
+  return typeof value === "string" && valid.has(value as SessionAiPlatform)
+    ? (value as SessionAiPlatform)
+    : "other";
+}
+
+function platformToTarget(platform: SessionAiPlatform): PromptSettings["target_platform"] {
+  if (platform === "other") {
+    return "generic";
+  }
+  return platform;
 }

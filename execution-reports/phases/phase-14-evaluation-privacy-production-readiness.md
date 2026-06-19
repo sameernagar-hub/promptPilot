@@ -8,7 +8,7 @@ Core product goal: improve how a person talks to AI.
 
 ## Status
 
-Not started.
+Complete.
 
 ## Evaluation Posture
 
@@ -40,9 +40,17 @@ raw user request
 -> clarifying questions, answers, skipped questions, and assumptions
 -> platform-aware prompt contract generation
 -> dynamic local evaluator scoring through Ollama llama3.1:8b
--> normalized score breakdown, recommendation, explanation, and recommended actions
+-> normalized score breakdown, recommendation, explanation, modification rationale, platform-fit breakdown, and recommended actions
 -> persisted prompt score records and dashboard-ready API payload
 ```
+
+## Pipeline Metadata Contract for Phase 15 UX
+
+- Return a modification audit trail that records why the backend altered, expanded, constrained, or reformatted the user's raw request.
+- Include skipped-question assumption metadata that maps each skipped required question to the explicit assumption injected into the final prompt.
+- Include platform-fit breakdown metadata that can compare selected-platform fit against relevant target architectures such as Codex, Gemini, Claude, ChatGPT/OpenAI, Cursor, and generic assistants.
+- Include analytical reasoning metadata in safe, summarized fields such as `rules_matched`, `user_trait_alignment`, `domain_confirmation_influence`, `assumption_sources`, and `optimization_paths`.
+- Keep this metadata frontend-ready, compact, and validated so Phase 15 can place it behind progressive disclosure without exposing raw evaluator prompts, chain-of-thought, or internal debug traces.
 
 ## Dynamic Session Evaluation Criteria
 
@@ -52,6 +60,8 @@ raw user request
 - `domain_accuracy`: whether detected, confirmed, or corrected domain context is reflected accurately in the prompt and scoring explanation.
 - `clarification_value`: whether clarifying questions reduce ambiguity and improve the recommended variant.
 - `platform_fit`: whether the prompt is shaped for the selected target platform, including Claude, OpenAI/ChatGPT, Codex, Gemini, Cursor, or generic assistants.
+- `platform_fit_granularity`: whether the response can explain the prompt's distinct fit for each relevant target LLM architecture rather than hiding platform behavior in one opaque score.
+- `backend_value_exposure`: whether the response makes PromptPilot's improvements visible through concise audit, rules, trait-alignment, and optimization-path metadata.
 - `safety_privacy_integrity`: whether sensitive requests, secrets, imported content, and misuse attempts are handled with the correct warnings, redaction, or refusal/redirect behavior.
 - `user_actionability`: whether the recommended variant and explanation help the user understand what to do next.
 
@@ -109,7 +119,7 @@ guardrail refusal and safe-redirection behavior
 - Rate limits.
 - Model usage and cost tracking.
 - Audit logs for model runs and imports.
-- Export to Markdown, PDF, and JSON.
+- Export to Markdown and JSON for sessions and profile data.
 - Data reset and deletion flows that work at the session level.
 
 ## App Shell and Personalized Experience
@@ -138,50 +148,71 @@ guardrail refusal and safe-redirection behavior
 
 ## Planned Work
 
-- [ ] Build the session onboarding screen and session store.
-- [ ] Add display-name and AI-platform fields to the session model.
-- [ ] Add the supported AI-platform list with an Other option.
-- [ ] Add rules acceptance and guardrail checks before entering the workspace.
-- [ ] Add Start New Session and End Session flows.
-- [ ] Remove precreated examples and demo data from the default production path.
-- [ ] Personalize workspace, profile, refinement, and Q&A copy around the active session.
-- [ ] Extend `POST /sessions/{session_id}/run-pipeline` so live scoring is part of the backend workflow instead of a detached benchmark step.
-- [ ] Add dynamic scoring dimensions for input-to-contract improvement, contract completeness, assumption handling, domain accuracy, clarification value, platform fit, safety/privacy integrity, and user actionability.
-- [ ] Wire local `Ollama` with `llama3.1:8b` into the live scorer for generated prompt variants.
-- [ ] Normalize and validate AI-generated score output before it is stored in `prompt_scores`, prompt variant metadata, or API responses.
-- [ ] Preserve current deterministic scoring behavior as an explicit fallback with visible scorer metadata.
-- [ ] Add promptfoo scenarios for diverse user requests, skipped questions, domain correction, platform-specific recommendations, sensitive prompts, redaction, and profile-trait influence.
-- [ ] Use promptfoo assertions to prevent regressions in score schema, ranking, assumptions, domain fit, platform fit, safety behavior, and recommendation explanations.
-- [ ] Simplify score-heavy UI so user-facing guidance is readable before raw metrics.
-- [ ] Ensure all generated outputs pass through the AI formatter before display.
-- [ ] Add tests for privacy-critical behaviors.
-- [ ] Define session, auth, and ownership boundaries before real chat storage.
-- [ ] Add export and delete flows for profile data.
-- [ ] Add audit logs for model runs, imports, and evaluator/scorer runs.
+- [x] Build the session onboarding screen and session store.
+- [x] Add display-name and AI-platform fields to the session model.
+- [x] Add the supported AI-platform list with an Other option.
+- [x] Add rules acceptance and guardrail checks before entering the workspace.
+- [x] Add Start New Session and End Session flows.
+- [x] Remove precreated examples and demo data from the default production path.
+- [x] Personalize workspace and refinement copy around the active session.
+- [x] Extend `POST /sessions/{session_id}/run-pipeline` so live scoring is part of the backend workflow instead of a detached benchmark step.
+- [x] Add dynamic scoring dimensions for input-to-contract improvement, contract completeness, assumption handling, domain accuracy, clarification value, platform fit, safety/privacy integrity, and user actionability.
+- [x] Add Phase 15-ready metadata fields for modification audit trails, skipped-question assumption sources, platform-fit breakdowns, matched rules, user-trait alignment, and optimization paths.
+- [x] Wire local `Ollama` with `llama3.1:8b` into the live scorer for generated prompt variants.
+- [x] Normalize and validate deterministic and Ollama-generated score output before it is stored in `prompt_scores`, prompt variant metadata, or API responses.
+- [x] Preserve current deterministic scoring behavior as an explicit fallback with visible scorer metadata.
+- [x] Add promptfoo scenarios for diverse user requests, skipped questions, domain correction, platform-specific recommendations, sensitive prompts, redaction, and profile-trait influence.
+- [x] Use promptfoo assertions to prevent regressions in score schema, ranking, assumptions, domain fit, platform fit, safety behavior, and recommendation explanations.
+- [x] Simplify score-heavy UI so user-facing guidance is readable before raw metrics.
+- [x] Ensure generated and interpreted outputs use product-facing AI formatting before display.
+- [x] Add tests for privacy-critical behaviors.
+- [x] Define session, auth, and ownership boundaries before real chat storage.
+- [x] Add export and delete flows for session and profile data.
+- [x] Add audit logs for model runs, imports, and evaluator/scorer runs.
 
 ## Verification
 
-- [ ] A new visitor must create a session with name, AI platform, and rules acceptance before using the workspace.
-- [ ] AI platform options include ChatGPT, Claude, Grok, Perplexity, Gemini, Copilot, Cursor, Codex, and Other.
-- [ ] Session state persists across route changes and refreshes until End Session is used.
-- [ ] End Session clears active local session state and returns to onboarding.
-- [ ] Start New Session creates a clean slate without seeded examples, previous profile observations, imports, or prompt history.
-- [ ] Header and footer remain stable across tabs and routes.
-- [ ] Logo click returns to the home workspace.
-- [ ] User-facing outputs are AI-formatted, personalized, and free of raw `Problem: ...` style echoes.
-- [ ] Scores are readable and detailed metrics are not the dominant UI.
-- [ ] `POST /sessions/{session_id}/run-pipeline` returns live evaluation fields for each generated variant.
-- [ ] Dynamic scores measure prompt quality improvement, contract completeness, assumptions, domain accuracy, and platform fit.
-- [ ] Skipped clarifying questions are reflected as assumptions and affect scoring confidence or specificity.
-- [ ] Confirmed or corrected domains improve domain-fit scoring and explanation text.
-- [ ] Local `Ollama` with `llama3.1:8b` can score live variants in local development.
-- [ ] Scorer metadata identifies whether `Ollama` or the deterministic fallback produced the score.
-- [ ] promptfoo scenarios cover diverse messy user inputs, target platforms, skipped questions, safety/privacy cases, and profile-trait influence.
-- [ ] promptfoo regression checks pass locally.
-- [ ] Guardrails block misuse and safely redirect allowed use cases.
-- [ ] Evaluation suite runs locally.
-- [ ] Privacy-critical behaviors have tests.
-- [ ] Session, auth, and ownership boundaries are explicit before storing real user chat history.
-- [ ] Users can export and delete their profile data.
-- [ ] Audit logs exist for imports, model runs, and scorer runs.
-- [ ] Existing Phase 0 through Phase 13 behavior remains intact, including local Postgres/pgvector schemas and `trait_detector_v1` signal generation.
+- [x] A new visitor must create a session with name, AI platform, and rules acceptance before using the workspace.
+- [x] AI platform options include ChatGPT, Claude, Grok, Perplexity, Gemini, Copilot, Cursor, Codex, and Other.
+- [x] Session state persists across route changes and refreshes until End Session is used.
+- [x] End Session clears active local session state and returns to onboarding.
+- [x] Start New Session creates a clean slate without seeded examples, previous profile observations, imports, or prompt history.
+- [x] Header and footer remain stable across tabs and routes.
+- [x] Logo click returns to the home workspace.
+- [x] User-facing outputs are AI-formatted, personalized, and free of raw `Problem: ...` style echoes.
+- [x] Scores are readable and detailed metrics are not the dominant UI.
+- [x] `POST /sessions/{session_id}/run-pipeline` returns live evaluation fields for each generated variant.
+- [x] Dynamic scores measure prompt quality improvement, contract completeness, assumptions, domain accuracy, and platform fit.
+- [x] Skipped clarifying questions are reflected as assumptions and affect scoring confidence or specificity.
+- [x] Skipped-question metadata maps each injected assumption back to the missing question or context source.
+- [x] Live pipeline responses include modification rationale, rules matched, user-trait alignment, optimization paths, and platform-fit breakdowns for Phase 15 progressive disclosure.
+- [x] Confirmed or corrected domains improve domain-fit scoring and explanation text.
+- [x] Local `Ollama` with `llama3.1:8b` can score live variants in local development.
+- [x] Scorer metadata identifies whether `Ollama` or the deterministic fallback produced the score.
+- [x] promptfoo scenarios cover diverse messy user inputs, target platforms, skipped questions, safety/privacy cases, and profile-trait influence.
+- [x] promptfoo regression checks pass locally.
+- [x] Guardrails block misuse and safely redirect allowed use cases.
+- [x] Evaluation suite runs locally.
+- [x] Privacy-critical behaviors have tests.
+- [x] Session, auth, and ownership boundaries are explicit before storing real user chat history.
+- [x] Users can export and delete their session and profile data.
+- [x] Audit logs exist for imports, model runs, and scorer runs.
+- [x] Existing Phase 0 through Phase 13 behavior remains intact, including local Postgres/pgvector schemas and `trait_detector_v1` signal generation.
+
+## Completion Notes
+
+- `POST /sessions/{session_id}/run-pipeline` now attempts local Ollama scoring with `llama3.1:8b`, accepts multiple model JSON shapes, blends model scores into the deterministic rubric, and records whether `ollama_blended` or deterministic fallback was used.
+- Session export/delete and profile export/reset are available through API routes and low-profile UI controls.
+- Persistent audit logs now cover session lifecycle, prompt generation, scorer runs, prompt score persistence, model-run previews, guardrail blocks, import create/reprocess/delete, and profile reset.
+- The workspace, onboarding, profile, imports, library, and settings routes now share a stable app frame or matching footer/header treatment.
+- Regression coverage lives under `evals/promptfoo` and passes locally through `phase14_regression.py`.
+
+Verification commands run:
+
+```powershell
+uv --directory apps/api run python -m compileall app
+uv --directory apps/api run python ..\..\evals\promptfoo\phase14_regression.py
+pnpm.cmd --dir apps/web lint
+pnpm.cmd --dir apps/web build
+git diff --check
+```

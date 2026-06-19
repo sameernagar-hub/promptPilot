@@ -5,7 +5,17 @@ export type PromptSettings = {
   format: "checklist" | "guide" | "table" | "conversation" | "plan";
   risk: "safe_only" | "normal" | "advanced";
   sources: "none" | "web" | "official_docs";
-  target_platform: "codex" | "claude" | "chatgpt" | "gemini" | "cursor" | "generic";
+  target_platform:
+    | "codex"
+    | "claude"
+    | "chatgpt"
+    | "gemini"
+    | "cursor"
+    | "grok"
+    | "perplexity"
+    | "copilot"
+    | "generic"
+    | "other";
   detail_level: "concise" | "balanced" | "exhaustive";
   formality: "casual" | "neutral" | "formal";
   temperature: "precise" | "balanced" | "creative";
@@ -16,9 +26,30 @@ export type PromptSettings = {
 
 export type RefinementMode = "refinement" | "quick";
 export type ClarifyingQuestionState = "unanswered" | "answered" | "skipped";
+export type SessionAiPlatform =
+  | "chatgpt"
+  | "claude"
+  | "grok"
+  | "perplexity"
+  | "gemini"
+  | "copilot"
+  | "cursor"
+  | "codex"
+  | "other";
+
+export type ActiveSessionProfile = {
+  display_name: string;
+  primary_ai_platform: SessionAiPlatform;
+  rules_accepted: boolean;
+  started_at: string;
+};
 
 export type SessionResponse = {
   id: string;
+  display_name: string | null;
+  primary_ai_platform: string | null;
+  rules_accepted: boolean;
+  session_metadata: Record<string, unknown>;
   raw_input: string;
   detected_domain: string | null;
   detected_intent: string | null;
@@ -30,6 +61,7 @@ export type SessionResponse = {
   prompt_variant_ids: string[];
   created_at: string;
   updated_at: string;
+  ended_at: string | null;
 };
 
 export type ClassificationResponse = {
@@ -71,6 +103,42 @@ export type PromptVariant = {
   score_total: number | null;
   score_breakdown: Record<string, number>;
   explanation: string | null;
+  platform_fit_rating: number | null;
+  platform_fit_breakdown: Record<string, number>;
+  recommendation_summary: string | null;
+  why_this_variant: string | null;
+  assumption_notes: string[];
+  modification_audit_trail: {
+    id: string;
+    label: string;
+    reason: string;
+    source: string;
+  }[];
+  rules_matched: {
+    id: string;
+    label: string;
+    matched: boolean;
+    detail: string;
+  }[];
+  user_trait_alignment: {
+    trait_key?: string;
+    label?: string;
+    score?: number;
+    confidence?: number;
+    used_for?: string;
+  }[];
+  optimization_paths: {
+    id: string;
+    label: string;
+    detail: string;
+  }[];
+  recommended_actions: {
+    id: string;
+    label: string;
+    impact: string;
+    priority: string;
+  }[];
+  scorer_metadata: Record<string, unknown>;
   created_at: string;
 };
 
@@ -85,6 +153,9 @@ export type PipelineResponse = {
   assumptions: string[];
   revisions: PromptRevision[];
   timeline: string[];
+  guardrail_status: "passed" | "blocked";
+  guardrail_message: string | null;
+  safe_redirect: string | null;
 };
 
 export type PromptRevision = {
@@ -325,6 +396,48 @@ export type DomainConfirmationResponse = {
   classification: ClassificationResponse;
 };
 
+export type EndSessionResponse = {
+  id: string;
+  status: string;
+  ended_at: string;
+};
+
+export type AuditLog = {
+  id: string;
+  session_id: string | null;
+  entity_type: string;
+  entity_id: string | null;
+  event_type: string;
+  event_metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type SessionExport = {
+  session_id: string;
+  format: "markdown" | "json";
+  filename: string;
+  content: string;
+  metadata: Record<string, unknown>;
+};
+
+export type DeleteSessionDataResponse = {
+  session_id: string;
+  deleted: boolean;
+  deleted_counts: Record<string, number>;
+};
+
+export type ProfileExport = {
+  format: "markdown" | "json";
+  filename: string;
+  content: string;
+  metadata: Record<string, unknown>;
+};
+
+export type DeleteProfileDataResponse = {
+  deleted: boolean;
+  deleted_counts: Record<string, number>;
+};
+
 export const defaultSettings: PromptSettings = {
   length: "medium",
   skill_level: "practical",
@@ -377,18 +490,50 @@ export async function getHealth() {
 export async function createSession(
   rawInput: string,
   settings: PromptSettings,
+  activeSession: ActiveSessionProfile,
 ) {
   return request<SessionResponse>("/sessions", {
     method: "POST",
     body: JSON.stringify({
       raw_input: rawInput,
       settings,
+      display_name: activeSession.display_name,
+      primary_ai_platform: activeSession.primary_ai_platform,
+      rules_accepted: activeSession.rules_accepted,
+      session_metadata: {
+        started_at: activeSession.started_at,
+        frontend_session_version: "phase14-v1",
+      },
     }),
   });
 }
 
 export async function getSession(sessionId: string) {
   return request<SessionResponse>(`/sessions/${sessionId}`);
+}
+
+export async function endSession(sessionId: string) {
+  return request<EndSessionResponse>(`/sessions/${sessionId}/end`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function getSessionAuditLogs(sessionId: string) {
+  return request<AuditLog[]>(`/sessions/${sessionId}/audit-logs`);
+}
+
+export async function exportSession(
+  sessionId: string,
+  format: "markdown" | "json" = "markdown",
+) {
+  return request<SessionExport>(`/sessions/${sessionId}/export?format=${format}`);
+}
+
+export async function deleteSessionData(sessionId: string) {
+  return request<DeleteSessionDataResponse>(`/sessions/${sessionId}/data`, {
+    method: "DELETE",
+  });
 }
 
 export async function runPipeline(
@@ -460,6 +605,16 @@ export async function getSavedPrompts() {
 
 export async function getProfile() {
   return request<PromptProfile>("/profile");
+}
+
+export async function exportProfile(format: "markdown" | "json" = "markdown") {
+  return request<ProfileExport>(`/profile/export?format=${format}`);
+}
+
+export async function deleteProfileData() {
+  return request<DeleteProfileDataResponse>("/profile/data", {
+    method: "DELETE",
+  });
 }
 
 export async function refreshProfile() {

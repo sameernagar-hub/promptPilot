@@ -64,14 +64,32 @@ PLATFORM_BEHAVIOR = {
     "cursor": (
         "Optimize for Cursor. Emphasize files, editor context, incremental code edits, tests, and concise implementation notes."
     ),
+    "grok": (
+        "Optimize for Grok. Keep the prompt direct, contrastive, current-context aware, and easy to iterate."
+    ),
+    "perplexity": (
+        "Optimize for Perplexity. Emphasize source-backed research, citations, evidence boundaries, and comparison of claims."
+    ),
+    "copilot": (
+        "Optimize for Copilot. Emphasize concise workflow context, document or code context, and practical next actions."
+    ),
     "generic": (
+        "Optimize for a generic AI assistant. Avoid provider-specific features or assumptions."
+    ),
+    "other": (
         "Optimize for a generic AI assistant. Avoid provider-specific features or assumptions."
     ),
 }
 
 
 def _context_lines(session: ProblemSession) -> list[str]:
-    lines = [f"Problem: {session.raw_input}"]
+    lines = [f"User request context: {session.raw_input}"]
+    if session.display_name or session.primary_ai_platform:
+        lines.append(
+            "Session profile: "
+            f"{session.display_name or 'User'} wants help with "
+            f"{(session.primary_ai_platform or 'an AI assistant').replace('_', ' ')}."
+        )
     if session.detected_domain:
         lines.append(f"Detected domain: {session.detected_domain}")
     if session.detected_intent:
@@ -222,7 +240,11 @@ def _platform_label(platform: str) -> str:
         "chatgpt": "ChatGPT",
         "gemini": "Gemini",
         "cursor": "Cursor",
+        "grok": "Grok",
+        "perplexity": "Perplexity",
+        "copilot": "Copilot",
         "generic": "Generic",
+        "other": "Other AI",
     }
     return labels.get(platform, platform.replace("_", " ").title())
 
