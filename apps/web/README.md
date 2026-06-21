@@ -34,11 +34,12 @@ The `/profile` dashboard shows profile metrics, profile Q&A, suggested questions
 
 The `/` workspace now opens behind a Phase 14 session-start flow. A visitor must provide a display name, select a primary AI platform, and accept rules before the workspace is usable. The active session profile is stored locally until End Session is used.
 
-The `/` workspace now focuses on a guided flow: session onboarding, request entry, Refine/Quick mode selection, domain confirmation, clarifying questions with answer/skip/revise states, one full platform-aware recommended prompt, assumptions, revision history, optional alternatives, grouped preferences, profile-seeded platform defaults, and theme selection.
+The `/` workspace now focuses on a guided flow: session onboarding, request entry, optional agent-track selection, Refine/Quick mode selection, domain confirmation, clarifying questions with answer/skip/revise states, one full platform-aware recommended prompt, assumptions, revision history, optional alternatives, grouped preferences, profile-seeded platform defaults, and theme selection.
 
-Phase 14 workspace behavior:
+Workspace behavior:
 
 - Supported primary AI platforms: ChatGPT, Claude, Grok, Perplexity, Gemini, Copilot, Cursor, Codex, and Other.
+- Optional agent tracks are available for Fix, Build, Learn, Write, Compare, and Research. They merge ordinary workspace preferences and add an `agent_track` session metadata hint without hiding user control.
 - Start New Session resets the current request, answers, prompt output, assumptions, and run output without reusing seeded examples.
 - End Session clears the local active session and returns to onboarding.
 - Export downloads the active session as Markdown.

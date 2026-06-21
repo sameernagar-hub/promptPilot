@@ -18,6 +18,7 @@ from app.schemas import (
 )
 from app.services.classifier import classify_problem
 from app.services.guardrails import evaluate_guardrails
+from app.services.knowledge_support import retrieve_knowledge_context
 from app.services.profile_analyzer import get_prompt_profile
 from app.services.prompt_generator import choose_prompt_strategies, generate_prompt_variants
 from app.services.prompt_scorer import score_prompt_variants
@@ -184,10 +185,21 @@ def run_prompt_engine(
             guardrail_status="passed",
         )
 
+    with _stage_timer(stage_timings_ms, "knowledge_retrieval"):
+        knowledge_context = retrieve_knowledge_context(classification, settings)
+    timeline.append(
+        f"knowledge_patterns:{len(knowledge_context.patterns)}"
+    )
+
     with _stage_timer(stage_timings_ms, "template_assembly"):
         strategies = choose_prompt_strategies(session, settings, clarify_needed)
         previous_prompt = _previous_recommended_prompt(session)
-        prompts = generate_prompt_variants(session, settings, strategies=strategies)
+        prompts = generate_prompt_variants(
+            session,
+            settings,
+            strategies=strategies,
+            knowledge_context=knowledge_context,
+        )
     with _stage_timer(stage_timings_ms, "prompt_persistence"):
         prompts = store.replace_session_prompts(session, prompts)
     timeline.append("prompts_generated")
@@ -200,7 +212,11 @@ def run_prompt_engine(
             risk_level=session.risk_level,
             needs_clarification=clarify_needed,
             missing_context_count=len(assumptions),
-            recommendation_notes=_recommendation_notes(session, profile_traits),
+            recommendation_notes=_recommendation_notes(
+                session,
+                profile_traits,
+                knowledge_context.model_dump(),
+            ),
             classification=classification,
             assumption_sources=assumption_sources,
             profile_traits=profile_traits,
@@ -247,6 +263,7 @@ def run_prompt_engine(
                         "assumption_sources": assumption_sources,
                         "profile_traits": _profile_trait_metadata(profile_traits),
                         "session_profile": _session_profile_metadata(session),
+                        "knowledge_context": knowledge_context.model_dump(),
                         "scorer_metadata": recommended_prompt.scorer_metadata,
                         "modification_audit_trail": recommended_prompt.modification_audit_trail,
                         "optimization_paths": recommended_prompt.optimization_paths,
@@ -436,6 +453,7 @@ def _profile_traits_for_refinement() -> list[dict]:
 def _recommendation_notes(
     session: ProblemSession,
     profile_traits: list[dict],
+    knowledge_context: dict | None = None,
 ) -> list[str]:
     answered_count = sum(
         1 for question in session.question_rows if question.answer_state == "answered"
@@ -460,6 +478,9 @@ def _recommendation_notes(
             )
     else:
         notes.append("no profile traits yet")
+    knowledge_patterns = (knowledge_context or {}).get("patterns") or []
+    if knowledge_patterns:
+        notes.append(f"{len(knowledge_patterns)} licensed pattern guides")
     return notes
 
 

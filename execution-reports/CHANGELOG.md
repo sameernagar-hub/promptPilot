@@ -2,6 +2,27 @@
 
 This changelog records every meaningful command, check, file edit, and project-control decision.
 
+## 2026-06-20
+
+### Phase 15 Completion
+
+- Added optional workspace agent tracks for Fix, Build, Learn, Write, Compare, and Research.
+  - Track buttons live below the request text area.
+  - Selecting a track merges ordinary prompt settings, changes the request placeholder, and stores `agent_track` in session metadata.
+  - Track changes create a fresh backend session when needed so prompt generation sees the current selected track.
+  - Generated prompts label the selected track as a workflow hint only, subordinate to user settings, request details, confirmed domain, safety rules, and profile preferences.
+- Completed Phase 15 documentation alignment.
+  - Updated `README.md`, `apps/api/README.md`, `apps/web/README.md`, `docs/prompt-engine.md`, `EXECUTION_LOG.md`, `execution-reports/README.md`, `execution-reports/CURRENT_STATUS.md`, and the Phase 15 report.
+  - Marked Phase 15 complete and made Phase 16 production-first Vercel deployment the recommended next step.
+- Final verification passed:
+  - `pnpm.cmd --dir apps/web lint`
+  - `pnpm.cmd --dir apps/web build`
+  - `uv --directory apps/api run python -m compileall app`
+  - FastAPI `TestClient` smoke created a tracked session, ran `run-pipeline`, verified the agent-track prompt hint, verified the `Knowledge support:` block and `knowledge_patterns:0` timeline entry, and deleted the temporary session.
+  - API health returned `ok` at `http://127.0.0.1:8000/health`.
+  - Headless Chrome CDP responsive QA passed on desktop, tablet, and mobile: no horizontal overflow, no clipped track controls, all six tracks visible, and selected-track placeholder changes working.
+  - In-app browser handle `iab` was unavailable, so Chrome CDP was used as the local browser fallback.
+
 ## 2026-06-14
 
 ### Workspace Scan
@@ -1000,3 +1021,42 @@ This changelog records every meaningful command, check, file edit, and project-c
   - `uv --directory apps/api run python ..\..\evals\promptfoo\phase14_regression.py` passed.
   - Restarted API on `http://127.0.0.1:8000`; `/health` returned status `ok`.
   - Web app remained available at `http://127.0.0.1:3000` with HTTP `200`.
+
+### Phase 15 Session Continuity And Output Guardrails
+
+- Added restorable session detail payloads.
+  - `GET /sessions/{session_id}` now returns classification, active prompts, the recommended prompt id, and recent revisions.
+  - Session create and answer-submit responses use the same hydrated response shape.
+- Added active workspace continuity.
+  - The workspace persists the active backend session id, selected prompt, refinement mode, and alternatives state in local storage.
+  - New, Delete, and End clear the active workspace snapshot so session state only sticks until the user explicitly resets or ends it.
+- Added visible output guardrails.
+  - Workspace and library displays hide raw JSON/internal-looking text instead of rendering it directly.
+  - Restored, saved, and newly generated prompt displays strip leading raw `Problem:` labels.
+  - Prompt generation removes a leading `Problem:` label before assembling the prompt contract context.
+- Verification.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed.
+  - `uv --directory apps/api run python -m compileall app` passed.
+  - Started API and web dev servers on `http://127.0.0.1:8000` and `http://127.0.0.1:3000`.
+  - `GET http://127.0.0.1:8000/health` returned status `ok`; `GET http://127.0.0.1:3000` returned HTTP `200`.
+
+### Phase 15 Knowledge RAG DSPy Support Hardening
+
+- Added first-class prompt knowledge source tracking.
+  - Knowledge sources now track author, license, allowed usage, prompt type, URL, domain, intent, risk, format, quality score, and extra metadata.
+  - Local schema bootstrap adds the new knowledge-source columns for existing development databases.
+- Added a guarded retrieval and synthesis layer.
+  - Retrieval only uses sources with license metadata and an allowed usage value.
+  - Retrieved sources become synthesized pattern guidance; raw source text is not copied into prompt output.
+  - Generated prompts explicitly keep retrieved patterns subordinate to active user settings, confirmed domain, profile preferences, safety rules, and live guardrails.
+- Added schema-stable DSPy adapters.
+  - Classification, clarification, refinement, and scoring adapters return existing Pydantic schemas.
+  - DSPy availability and module contracts are exposed through an internal summary helper, while optimizer traces remain non-UI outputs.
+- Verification.
+  - `uv --directory apps/api run python -m compileall app` passed.
+  - `pnpm.cmd --dir apps/web lint` passed.
+  - `pnpm.cmd --dir apps/web build` passed.
+  - Knowledge retrieval smoke returned an empty, guarded context with no stored sources.
+  - Transient synthesis smoke returned licensed high-level guidance without copying source text.
+  - FastAPI `TestClient` smoke created a temporary session, ran `run-pipeline`, verified the knowledge-support prompt block and `knowledge_patterns:0` timeline entry, then deleted the temporary session data.

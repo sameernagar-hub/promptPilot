@@ -41,6 +41,11 @@ TemperaturePreference = Literal["precise", "balanced", "creative"]
 ReasoningStyle = Literal["direct_answer", "step_by_step", "ask_first", "explore_options"]
 SourceStrictness = Literal["none", "cite_when_needed", "official_only", "evidence_first"]
 InteractionMode = Literal["one_shot", "iterative", "agentic"]
+PromptSourceAllowedUsage = Literal[
+    "pattern_synthesis_only",
+    "internal_project_example",
+    "licensed_reference",
+]
 ImportPlatform = Literal[
     "manual",
     "codex",
@@ -68,6 +73,73 @@ class PromptSettings(BaseModel):
     reasoning_style: ReasoningStyle = "ask_first"
     source_strictness: SourceStrictness = "none"
     interaction_mode: InteractionMode = "iterative"
+
+
+class PromptKnowledgeSourceCreate(BaseModel):
+    source_name: str = Field(..., min_length=1, max_length=200)
+    source_url: str | None = Field(default=None, max_length=2000)
+    author: str | None = Field(default=None, max_length=200)
+    license: str = Field(..., min_length=1, max_length=200)
+    allowed_usage: PromptSourceAllowedUsage = "pattern_synthesis_only"
+    raw_text: str = Field(..., min_length=20, max_length=50_000)
+    normalized_text: str | None = Field(default=None, max_length=50_000)
+    domain: str | None = Field(default=None, max_length=120)
+    intent: str | None = Field(default=None, max_length=120)
+    prompt_type: str | None = Field(default=None, max_length=120)
+    format: str | None = Field(default=None, max_length=80)
+    risk_level: str | None = Field(default=None, max_length=40)
+    quality_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    source_metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def normalize_required_source_metadata(self) -> "PromptKnowledgeSourceCreate":
+        self.source_name = self.source_name.strip()
+        self.license = self.license.strip()
+        self.raw_text = self.raw_text.strip()
+        if not self.source_name:
+            raise ValueError("source_name is required")
+        if not self.license:
+            raise ValueError("license is required")
+        return self
+
+
+class PromptKnowledgeSourceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    source_name: str
+    source_url: str | None = None
+    author: str | None = None
+    license: str
+    allowed_usage: str
+    domain: str | None = None
+    intent: str | None = None
+    prompt_type: str | None = None
+    format: str | None = None
+    risk_level: str | None = None
+    quality_score: float | None = None
+    source_metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class RetrievedKnowledgePattern(BaseModel):
+    source_id: str
+    source_name: str
+    source_url: str | None = None
+    author: str | None = None
+    license: str
+    allowed_usage: str
+    domain: str | None = None
+    intent: str | None = None
+    prompt_type: str | None = None
+    quality_score: float | None = None
+    synthesized_guidance: str
+    guardrail_notes: list[str] = Field(default_factory=list)
+
+
+class KnowledgeRetrievalContext(BaseModel):
+    patterns: list[RetrievedKnowledgePattern] = Field(default_factory=list)
+    retrieval_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class CreateSessionRequest(BaseModel):
@@ -260,6 +332,7 @@ class SessionResponse(BaseModel):
     rules_accepted: bool = False
     session_metadata: dict[str, Any] = Field(default_factory=dict)
     raw_input: str
+    classification: ClassificationResponse | None = None
     detected_domain: str | None
     detected_intent: str | None
     risk_level: str | None
@@ -268,6 +341,9 @@ class SessionResponse(BaseModel):
     clarifying_questions: list[dict] = Field(default_factory=list)
     answers: dict[str, str] = Field(default_factory=dict)
     prompt_variant_ids: list[str] = Field(default_factory=list)
+    prompts: list[PromptVariantResponse] = Field(default_factory=list)
+    recommended_prompt_id: str | None = None
+    revisions: list[PromptRevisionResponse] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
     ended_at: datetime | None = None

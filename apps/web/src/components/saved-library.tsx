@@ -32,7 +32,7 @@ export function SavedLibrary() {
             >
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold">{prompt.label ?? prompt.title}</h2>
+                  <h2 className="font-semibold">{displayText(prompt.label ?? prompt.title)}</h2>
                   <p className="text-xs text-[#65736f]">
                     {prompt.strategy.replaceAll("_", " ")}
                   </p>
@@ -55,7 +55,7 @@ export function SavedLibrary() {
                 </div>
               </div>
               <p className="line-clamp-6 whitespace-pre-wrap text-sm leading-6 text-[#34413e]">
-                {prompt.prompt_text}
+                {displayPromptText(prompt.prompt_text)}
               </p>
             </article>
           ))
@@ -70,5 +70,56 @@ export function SavedLibrary() {
         )}
       </section>
     </AppShell>
+  );
+}
+
+function displayText(
+  value: string | null | undefined,
+  fallback = "Hidden because this output looked internal or unformatted.",
+) {
+  if (!value) {
+    return fallback;
+  }
+  const cleaned = value.replace(/^\s*Problem\s*:\s*/i, "").trim();
+  if (!cleaned) {
+    return fallback;
+  }
+  if (looksLikeRawJson(cleaned) || looksInternalOutput(cleaned)) {
+    return fallback;
+  }
+  return cleaned;
+}
+
+function displayPromptText(value: string) {
+  const cleaned = value
+    .split(/\r?\n/)
+    .map((line) =>
+      line
+        .replace(/^\s*Problem\s*:\s*/i, "")
+        .replace(/^(\s*(?:Context|User request context):\s*)Problem\s*:\s*/i, "$1"),
+    )
+    .join("\n")
+    .trim();
+  if (!cleaned || looksLikeRawJson(cleaned) || looksInternalOutput(cleaned)) {
+    return "Prompt text is hidden because the output looked internal or unformatted.";
+  }
+  return cleaned;
+}
+
+function looksLikeRawJson(value: string) {
+  if (!/^[{[]/.test(value.trim())) {
+    return false;
+  }
+  try {
+    JSON.parse(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function looksInternalOutput(value: string) {
+  return /\b(chain[-\s]?of[-\s]?thought|internal (?:scoring rubric|debug|evaluator|trace|system prompt)|raw evaluator|evaluator prompt)\b/i.test(
+    value,
   );
 }

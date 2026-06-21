@@ -1,6 +1,6 @@
 # Current Status
 
-PromptPilot has completed Phase 14 session onboarding, live evaluation, privacy, and production readiness. Phase 15 is in progress, focused on codebase cleanup, AI-formatted scoring output review, knowledge support, RAG, DSPy, agent-track support systems, minimalist UX polish, documentation cleanup, and pre-deploy hardening.
+PromptPilot has completed Phase 15 codebase cleanup, AI-formatted output polish, knowledge/RAG/DSPy support hardening, agent-track support, responsive QA, documentation cleanup, and pre-deploy verification. Phase 16 is ready to begin for production-first Vercel deployment.
 
 ## Verified Workspace State
 
@@ -59,6 +59,12 @@ PromptPilot has completed Phase 14 session onboarding, live evaluation, privacy,
 - Local development has one frontend port (`3000`) and one API port (`8000`) across scripts, environment examples, API CORS defaults, and docs.
 - Phase 15 workspace output polish now keeps raw numeric scores inside expanded evaluation details, shows platform-readiness summary copy in the prompt header, renders recommended micro-actions as a compact optimization HUD, and includes rules matched, trait alignment, optimization paths, platform fit, and scorer status behind progressive disclosure.
 - Phase 15 production hardening now rejects production API startup when local database, local Ollama, or localhost CORS values are still configured, and the frontend requires `NEXT_PUBLIC_API_BASE_URL` outside local development.
+- Phase 15 session continuity now restores active workspace sessions from local storage and `GET /sessions/{session_id}` without rerunning the pipeline; restored sessions include active prompts, the recommended prompt id, classification, and recent revisions until the user starts a new workspace session, deletes the session, or ends the active session.
+- Phase 15 output guardrails now hide raw JSON/internal-looking text in visible workspace/library surfaces, keep numeric score dumps behind details, and remove leading `Problem:` labels from generated, restored, and saved prompt displays.
+- Phase 15 knowledge/RAG/DSPy support hardening now tracks prompt knowledge source author, license, allowed usage, prompt type, URL, domain, intent, and quality metadata; retrieval uses only licensed/allowed sources, synthesizes high-level pattern guidance instead of copying source text, and keeps retrieved guidance subordinate to user settings, confirmed domain, safety rules, profile preferences, and live guardrails.
+- DSPy support now has schema-stable adapter modules for classification, clarification, refinement, and scoring so future optimization can reuse the existing Pydantic contracts without exposing raw intermediate outputs.
+- Phase 15 agent tracks are now available in the workspace as optional Fix, Build, Learn, Write, Compare, and Research controls. They merge normal settings, update the request placeholder, and store an `agent_track` session metadata hint without hiding user preferences or bypassing guardrails.
+- Final Phase 15 verification passed: API compile, web lint, web production build, FastAPI `TestClient` session/pipeline smoke with agent-track and RAG guardrail assertions, API health check, and headless Chrome responsive QA on desktop, tablet, and mobile.
 - Git repository exists and tracks `origin/main`.
 
 ## Verified Local Tool State
@@ -81,9 +87,9 @@ PromptPilot has completed Phase 14 session onboarding, live evaluation, privacy,
 
 ## Recommended Next Decision
 
-Continue executing Phase 15: Codebase Cleanup, AI-Formatted Outputs, Knowledge Support, and Pre-Deploy Polish.
+Begin Phase 16: Vercel Production Deployment.
 
-The first Phase 15 cleanup slice standardizes the project to one local frontend port and one local API port, removes the extra local preview smoke port, updates docs, and keeps Phase 16 production-first. The second slice polishes dashboard-ready scoring output and progressive disclosure. The third slice adds production environment fail-fast checks. Remaining Phase 15 work covers broader codebase cleanup, responsive visual QA, RAG/DSPy/agent support-system hardening, and final pre-deploy checks.
+Phase 16 should use the production-first path already documented in the roadmap: deploy the final FastAPI API and final Next.js web app with managed production environment variables, no localhost URLs, no local Docker database, and no local Ollama dependency for public traffic.
 
 ## Verified Local Startup URLs
 

@@ -194,3 +194,12 @@ Invoke-RestMethod `
 - Deterministic scoring remains the stable fallback and records why fallback was used.
 - Deterministic guardrails block clear misuse requests and return a short safe redirect.
 - Import create/reprocess/delete, model-run previews, scorer runs, session lifecycle events, and profile reset are audit logged.
+
+Phase 15 knowledge, RAG, and DSPy support:
+
+- `prompt_sources` tracks licensed prompt patterns and project-created examples with source name, URL, author, license, allowed usage, domain, intent, prompt type, format, risk level, quality score, and metadata.
+- The knowledge retrieval layer uses only sources with license metadata and an allowed usage value.
+- Retrieved sources are converted into synthesized pattern guidance; raw source text is not copied into generated prompts.
+- Retrieved guidance is optional structure only. Active user settings, confirmed domain, profile preferences, scorer contract, deterministic safety rules, and live guardrails take priority.
+- DSPy support lives behind schema-stable adapters for classification, clarification, refinement, and scoring. The adapters return existing Pydantic schemas and keep optimizer traces or intermediate scores out of UI-facing responses.
+- Session metadata may include `agent_track` values such as `fix`, `build`, `learn`, `write`, `compare`, or `research`. Prompt generation treats the track as a workflow hint only; request details, user settings, confirmed domain, safety rules, and profile preferences remain authoritative.

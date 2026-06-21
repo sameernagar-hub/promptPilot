@@ -10,7 +10,7 @@ Core promise:
 
 ## Current Status
 
-Phase 14 is complete. Phase 15 is in progress and is focused on cleanup, documentation, output polish, knowledge/RAG/DSPy/agent-track planning, and deployment readiness.
+Phase 15 is complete. PromptPilot is ready for Phase 16 production-first Vercel deployment after cleanup, documentation, output polish, backend knowledge/RAG/DSPy support hardening, optional agent tracks, responsive QA, and final local verification.
 
 The active local contract is intentionally simple:
 
@@ -89,6 +89,7 @@ Production secrets should live in Vercel or the managed provider dashboard, neve
 
 - Start a session with display name, primary AI platform, and rules acceptance.
 - Enter a raw request and choose Refine or Quick mode.
+- Optionally choose a guided track: Fix, Build, Learn, Write, Compare, or Research. Tracks only tune normal preferences and add a session metadata hint; users can still edit all settings.
 - Confirm or correct the detected domain when prompted.
 - Answer, skip, or revise clarifying questions.
 - Review the recommended platform-aware prompt first, with alternatives secondary.

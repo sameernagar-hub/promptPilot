@@ -16,6 +16,7 @@ from app.schemas import (
     GeneratePromptsRequest,
     PromptEngineRunRequest,
     PromptEngineRunResponse,
+    PromptRevisionResponse,
     PromptSettings,
     PromptVariantResponse,
     RunPromptRequest,
@@ -47,6 +48,21 @@ def _settings_from_session(session) -> PromptSettings:
     return PromptSettings.model_validate(session.user_settings)
 
 
+def _session_response(session) -> SessionResponse:
+    prompts = store.get_session_prompts(session)
+    response = SessionResponse.model_validate(session)
+    response.prompts = [PromptVariantResponse.model_validate(prompt) for prompt in prompts]
+    response.recommended_prompt_id = next(
+        (prompt.id for prompt in prompts if prompt.recommendation_label == "recommended"),
+        prompts[0].id if prompts else None,
+    )
+    response.revisions = [
+        PromptRevisionResponse.model_validate(revision)
+        for revision in store.list_prompt_revisions(session.id)[:5]
+    ]
+    return response
+
+
 @router.post("", response_model=SessionResponse, status_code=201)
 def create_session(payload: CreateSessionRequest) -> SessionResponse:
     session = store.create_session(
@@ -57,13 +73,13 @@ def create_session(payload: CreateSessionRequest) -> SessionResponse:
         rules_accepted=payload.rules_accepted,
         session_metadata=payload.session_metadata,
     )
-    return SessionResponse.model_validate(session)
+    return _session_response(session)
 
 
 @router.get("/{session_id}", response_model=SessionResponse)
 def get_session(session_id: str) -> SessionResponse:
     session = _get_session_or_404(session_id)
-    return SessionResponse.model_validate(session)
+    return _session_response(session)
 
 
 @router.post("/{session_id}/end", response_model=EndSessionResponse)
@@ -240,7 +256,7 @@ def submit_answers(
             "skipped_count": sum(1 for answer in payload.answers if answer.state == "skipped"),
         },
     )
-    return SessionResponse.model_validate(session)
+    return _session_response(session)
 
 
 @router.post("/{session_id}/generate-prompts", response_model=list[PromptVariantResponse])

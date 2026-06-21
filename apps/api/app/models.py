@@ -603,11 +603,17 @@ class PromptSource(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
     source_name: Mapped[str] = mapped_column(String(200))
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    author: Mapped[str | None] = mapped_column(String(200), nullable=True)
     license: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    allowed_usage: Mapped[str] = mapped_column(
+        String(120),
+        default="pattern_synthesis_only",
+    )
     raw_text: Mapped[str] = mapped_column(Text)
     normalized_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     domain: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     intent: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    prompt_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     format: Mapped[str | None] = mapped_column(String(80), nullable=True)
     risk_level: Mapped[str | None] = mapped_column(String(40), nullable=True)
     quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)

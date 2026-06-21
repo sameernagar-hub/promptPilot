@@ -982,6 +982,17 @@ Verification:
 
 Goal: Prepare PromptPilot for Phase 16 Vercel deployment by cleaning the codebase, simplifying the product surface, documenting the architecture, and ensuring AI-generated scoring explanations, platform-fit ratings, backend modification rationale, and recommended actions are cleanly formatted for minimalist Next.js dashboards.
 
+Current Phase 15 execution progress:
+
+- Single-port cleanup is complete: local web uses port `3000`, local API uses port `8000`, and default docs/config no longer use an extra preview smoke port.
+- Dashboard scoring-output polish is complete: the default workspace centers the recommended prompt, moves raw score details behind progressive disclosure, and presents recommended micro-actions as a compact optimization HUD.
+- Production environment hardening is complete: production API startup rejects local database, local Ollama, and localhost CORS values, and the frontend requires `NEXT_PUBLIC_API_BASE_URL` outside local development.
+- Session continuity is complete for the workspace path: session fetches include active prompts, recommended prompt id, classification, and recent revisions, while local storage preserves the active backend session until New, Delete, or End.
+- Visible output guardrails are complete for workspace and library displays: raw JSON/internal-looking text is hidden, confusing score dumps stay behind details, and leading `Problem:` labels are stripped from generated, restored, and saved prompt displays.
+- Knowledge/RAG/DSPy support hardening is complete for the backend support layer: knowledge sources track license and allowed usage, retrieval returns synthesized pattern guidance only, retrieved patterns cannot override session/profile/safety/scorer contracts, and DSPy adapters return existing Pydantic schemas.
+- Agent-track support is complete: the workspace includes optional Fix, Build, Learn, Write, Compare, and Research tracks that tune normal preferences, store a session metadata hint, and preserve direct user control.
+- Responsive and final pre-deploy verification is complete across API compile, web lint/build, API smoke, health check, and headless Chrome desktop/tablet/mobile QA.
+
 Codebase cleanup:
 
 - Remove or archive unnecessary local-only artifacts before deployment, including stale screenshots, temporary smoke-test output, outdated status notes, unused changelog drafts, and obsolete planning fragments.
@@ -1195,15 +1206,15 @@ Use this checklist when starting implementation:
 - [x] Add advanced controls and platform-aware prompt output.
 - [x] Add profile Q&A dashboard.
 - [x] Add session onboarding, live evaluation, privacy, and production readiness.
-- [ ] Add codebase cleanup, AI-formatted scoring outputs, knowledge support, RAG, DSPy, and agent tracks as support systems.
+- [x] Add codebase cleanup, AI-formatted scoring outputs, knowledge support, RAG, DSPy, and agent tracks as support systems.
 - [ ] Install Vercel CLI and deploy the complete public production application on Vercel.
 
 ---
 
 ## Current Status
 
-Status: Phase 14 session onboarding, live evaluation, privacy, and production readiness are complete. Phase 15 is in progress.
+Status: Phase 15 codebase cleanup, AI-formatted output polish, knowledge/RAG/DSPy support hardening, agent-track support, responsive QA, documentation cleanup, and pre-deploy verification are complete.
 
 Next recommended step:
 
-Continue Phase 15: codebase cleanup, AI-formatted scoring output review, knowledge support, RAG, DSPy, agent-track support systems, minimalist UX polish, documentation cleanup, and pre-deploy hardening.
+Begin Phase 16: production-first Vercel deployment for the FastAPI API and Next.js web app.

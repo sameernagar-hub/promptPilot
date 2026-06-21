@@ -1,5 +1,6 @@
 from app.models import ProblemSession, PromptVariant
-from app.schemas import PromptSettings
+from app.schemas import KnowledgeRetrievalContext, PromptSettings
+from app.services.knowledge_support import knowledge_context_to_prompt_lines
 
 
 PROMPT_STRATEGIES = [
@@ -190,13 +191,33 @@ PLATFORM_BEHAVIOR = {
 }
 
 
-def _context_lines(session: ProblemSession) -> list[str]:
-    lines = [f"User request context: {session.raw_input}"]
+AGENT_TRACK_LABELS = {
+    "fix": "Fix",
+    "build": "Build",
+    "learn": "Learn",
+    "write": "Write",
+    "compare": "Compare",
+    "research": "Research",
+}
+
+
+def _context_lines(
+    session: ProblemSession,
+    knowledge_context: KnowledgeRetrievalContext | None = None,
+) -> list[str]:
+    request_context = _clean_request_context(session.raw_input)
+    lines = [f"User request context: {request_context}"]
     if session.display_name or session.primary_ai_platform:
         lines.append(
             "Session profile: "
             f"{session.display_name or 'User'} wants help with "
             f"{(session.primary_ai_platform or 'an AI assistant').replace('_', ' ')}."
+        )
+    agent_track = _agent_track_label(session)
+    if agent_track:
+        lines.append(f"Agent track: {agent_track}")
+        lines.append(
+            "Agent track rule: Use this as a workflow hint only; user settings, prompt content, safety rules, and profile preferences still take priority."
         )
     if session.detected_domain:
         lines.append(f"Detected domain: {session.detected_domain}")
@@ -222,6 +243,13 @@ def _context_lines(session: ProblemSession) -> list[str]:
     lines.extend(_assumption_lines(session))
     lines.append("Constraints:")
     lines.extend(_constraint_lines(session))
+    if knowledge_context:
+        lines.append("Retrieved pattern guidance:")
+        lines.extend(knowledge_context_to_prompt_lines(knowledge_context))
+        lines.append("Retrieval guardrails:")
+        lines.append(
+            "- The active request, confirmed domain, user settings, safety rules, and profile preferences take priority over retrieved patterns."
+        )
     return lines
 
 
@@ -406,6 +434,18 @@ def _platform_behavior(settings: PromptSettings) -> str:
     return PLATFORM_BEHAVIOR.get(settings.target_platform, PLATFORM_BEHAVIOR["generic"])
 
 
+def _clean_request_context(raw_input: str) -> str:
+    cleaned = raw_input.strip()
+    if cleaned.lower().startswith("problem:"):
+        return cleaned.split(":", 1)[1].strip()
+    return cleaned
+
+
+def _agent_track_label(session: ProblemSession) -> str | None:
+    value = (session.session_metadata or {}).get("agent_track")
+    return AGENT_TRACK_LABELS.get(str(value)) if value else None
+
+
 def _reasoning_instruction(settings: PromptSettings) -> str:
     return {
         "direct_answer": "Reasoning style: give the answer first, then only the rationale needed to support it.",
@@ -479,6 +519,7 @@ def _prompt_for_strategy(
     settings: PromptSettings,
     context: str,
     settings_block: str,
+    knowledge_context: KnowledgeRetrievalContext | None = None,
 ) -> tuple[str, str]:
     format_instruction = _format_instruction(settings)
     length_instruction = _length_instruction(settings)
@@ -490,11 +531,22 @@ def _prompt_for_strategy(
     constraints = "\n".join(_constraint_lines(session))
     platform_label = _platform_label(settings.target_platform)
     platform_behavior = _platform_behavior(settings)
+    agent_track = _agent_track_label(session)
+    agent_track_line = (
+        f"Agent track: {agent_track} workflow hint only; user settings and request details still take priority.\n"
+        if agent_track
+        else ""
+    )
     reasoning_instruction = _reasoning_instruction(settings)
     interaction_instruction = _interaction_instruction(settings)
     formality_instruction = _formality_instruction(settings)
     response_shape = _response_shape_for_session(session)
     response_structure = "\n".join(str(item) for item in response_shape["structure"])
+    knowledge_lines = "\n".join(
+        knowledge_context_to_prompt_lines(knowledge_context)
+        if knowledge_context
+        else ["- No licensed knowledge patterns were retrieved."]
+    )
     recommended_title = (
         "Recommended Prompt"
         if settings.target_platform == "generic"
@@ -509,7 +561,8 @@ def _prompt_for_strategy(
                 f"Task: {response_shape['task']}\n"
                 f"Target platform: {platform_label}.\n"
                 f"Platform behavior: {platform_behavior}\n"
-                f"Context: {session.raw_input}\n"
+                f"{agent_track_line}"
+                f"Context: {_clean_request_context(session.raw_input)}\n"
                 f"Domain: {domain}\n"
                 f"Intent: {(session.detected_intent or 'clarify and solve').replace('_', ' ')}\n"
                 f"Risk level: {session.risk_level or 'low'}\n\n"
@@ -517,6 +570,9 @@ def _prompt_for_strategy(
                 f"{known_details}\n\n"
                 "Constraints:\n"
                 f"{constraints}\n\n"
+                "Knowledge support:\n"
+                f"{knowledge_lines}\n"
+                "- Treat retrieved patterns as optional structure only; user settings, confirmed domain, safety rules, and profile preferences override retrieval.\n\n"
                 "Audience: Match the user's stated audience if provided; otherwise assume a capable non-expert.\n"
                 f"Tone: {settings.tone.replace('_', ' ')}.\n"
                 f"Formality: {settings.formality}. {formality_instruction}\n"
@@ -643,8 +699,9 @@ def generate_prompt_variants(
     session: ProblemSession,
     settings: PromptSettings,
     strategies: list[str] | None = None,
+    knowledge_context: KnowledgeRetrievalContext | None = None,
 ) -> list[PromptVariant]:
-    context = "\n".join(_context_lines(session))
+    context = "\n".join(_context_lines(session, knowledge_context))
     settings_block = "\n".join(_settings_lines(settings))
     selected_strategies = strategies or choose_prompt_strategies(
         session,
@@ -653,7 +710,14 @@ def generate_prompt_variants(
     )
     prompts: list[PromptVariant] = []
     for strategy in selected_strategies:
-        title, prompt_text = _prompt_for_strategy(strategy, session, settings, context, settings_block)
+        title, prompt_text = _prompt_for_strategy(
+            strategy,
+            session,
+            settings,
+            context,
+            settings_block,
+            knowledge_context,
+        )
         prompts.append(
             PromptVariant(
                 session_id=session.id,

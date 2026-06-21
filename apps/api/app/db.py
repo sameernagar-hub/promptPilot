@@ -12,6 +12,7 @@ from app.models import (
     PlatformPreference,
     ProblemSession,
     PromptEmbedding,
+    PromptSource,
     PromptingTraitSignal,
     PromptRevision,
     PromptScore,
@@ -98,6 +99,25 @@ def init_database() -> None:
                 "ALTER TABLE prompt_scores "
                 "ADD COLUMN IF NOT EXISTS metadata JSONB "
                 "DEFAULT '{}'::jsonb NOT NULL"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE prompt_sources "
+                "ADD COLUMN IF NOT EXISTS author VARCHAR(200)"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE prompt_sources "
+                "ADD COLUMN IF NOT EXISTS allowed_usage VARCHAR(120) "
+                "DEFAULT 'pattern_synthesis_only' NOT NULL"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE prompt_sources "
+                "ADD COLUMN IF NOT EXISTS prompt_type VARCHAR(120)"
             )
         )
 
@@ -426,6 +446,35 @@ class DatabaseStore:
     def list_saved_prompts(self) -> list[SavedPrompt]:
         with SessionLocal() as database:
             statement = select(SavedPrompt).order_by(SavedPrompt.created_at.desc())
+            return list(database.scalars(statement))
+
+    def create_prompt_source(self, source: PromptSource) -> PromptSource:
+        with SessionLocal() as database:
+            database.add(source)
+            database.commit()
+            database.refresh(source)
+            return source
+
+    def list_prompt_sources(
+        self,
+        domain: str | None = None,
+        intent: str | None = None,
+        limit: int = 20,
+    ) -> list[PromptSource]:
+        with SessionLocal() as database:
+            statement = select(PromptSource)
+            if domain:
+                statement = statement.where(
+                    (PromptSource.domain == domain) | (PromptSource.domain.is_(None))
+                )
+            if intent:
+                statement = statement.where(
+                    (PromptSource.intent == intent) | (PromptSource.intent.is_(None))
+                )
+            statement = statement.order_by(
+                PromptSource.quality_score.desc().nullslast(),
+                PromptSource.created_at.desc(),
+            ).limit(limit)
             return list(database.scalars(statement))
 
     def confirm_session_domain(

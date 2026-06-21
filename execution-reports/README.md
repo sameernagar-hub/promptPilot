@@ -4,7 +4,7 @@ This folder is the project control center for PromptPilot. It tracks what has be
 
 ## Current Rule
 
-Phase 14 session onboarding, live evaluation, privacy, and production readiness is complete. Phase 15 is in progress: codebase cleanup, AI-formatted scoring output review, explicit backend value exposure, progressive-disclosure UX, documentation cleanup, knowledge support, RAG/DSPy/agent support systems, and pre-deploy polish. The final planned phase is Phase 16: production-first Vercel deployment for the Next.js frontend and FastAPI backend.
+Phase 15 codebase cleanup, AI-formatted output polish, knowledge/RAG/DSPy support hardening, agent-track support, responsive QA, documentation cleanup, and pre-deploy verification are complete. The final planned phase is Phase 16: production-first Vercel deployment for the Next.js frontend and FastAPI backend.
 
 ## Files
 

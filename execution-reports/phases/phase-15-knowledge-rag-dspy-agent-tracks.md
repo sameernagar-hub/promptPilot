@@ -6,7 +6,7 @@ Prepare PromptPilot for Phase 16 Vercel deployment by cleaning the codebase, sim
 
 ## Status
 
-In progress.
+Complete.
 
 ## Execution Progress
 
@@ -19,6 +19,28 @@ In progress.
 - Production environment hardening has started:
   - API runtime rejects production startup when `DATABASE_URL`, `LLM_PROVIDER`, or `ALLOWED_ORIGINS` still point at local-only services
   - frontend API calls require `NEXT_PUBLIC_API_BASE_URL` outside local development
+- Session continuity and output guardrails are complete for the main workspace and library:
+  - `GET /sessions/{session_id}` now returns active prompt variants, the recommended prompt id, classification, and recent revisions so saved sessions can hydrate the full workspace view without rerunning the pipeline
+  - the workspace persists the active backend session id, selected prompt, refinement mode, and alternatives state in local storage until the user starts a new workspace session, deletes session data, or ends the active session
+  - visible prompt, scoring, revision, question, run-preview, and library text now passes through a display guard that hides raw JSON/internal-looking output and strips raw `Problem:` prefixes from restored or saved prompts
+  - prompt generation now removes a leading `Problem:` label before assembling the prompt contract context
+- Knowledge/RAG/DSPy support hardening is complete for the backend support layer:
+  - prompt knowledge sources now have first-class author, license, allowed-usage, prompt-type, domain, intent, URL, and quality metadata
+  - the retrieval layer uses only licensed/allowed sources, returns synthesized pattern guidance instead of copied prompt text, and attaches guardrail notes to every retrieved pattern
+  - generated prompts receive retrieved pattern guidance only as optional structure, with explicit precedence for active user settings, confirmed domain, profile preferences, safety rules, and live guardrails
+  - DSPy adapter modules now wrap classification, clarification, refinement, and scoring behind existing Pydantic response schemas so future optimizers cannot leak raw intermediate outputs
+- Agent-track support is complete for the first guided workflow layer:
+  - the workspace exposes optional Fix, Build, Learn, Write, Compare, and Research tracks below the request box
+  - selecting a track only merges normal settings, changes the request placeholder, and stores an `agent_track` metadata hint
+  - track changes create a fresh backend session when needed so prompt generation sees the current selected track
+  - generated prompts treat the track as a workflow hint only; user settings, request details, safety rules, confirmed domain, and profile preferences still take priority
+- Final Phase 15 responsive and runtime checks passed:
+  - `pnpm.cmd --dir apps/web lint`
+  - `pnpm.cmd --dir apps/web build`
+  - `uv --directory apps/api run python -m compileall app`
+  - FastAPI `TestClient` smoke verified session creation, track metadata, RAG guardrails, prompt generation, and cleanup
+  - API health returned `ok` at `http://127.0.0.1:8000/health`
+  - headless Chrome CDP QA verified desktop, tablet, and mobile workspace layouts with no horizontal overflow, no clipped track controls, six visible tracks, and working selected-track placeholder changes
 
 ## Codebase Cleanup
 
@@ -125,15 +147,15 @@ In progress.
 
 ## Verification
 
-- [ ] Codebase cleanup removes stale local-only artifacts, unused files, obsolete UI copy, and production-blocking assumptions.
+- [x] Codebase cleanup removes stale local-only artifacts, unused files, obsolete UI copy, and production-blocking assumptions.
 - [x] Local development uses only one frontend port, `3000`, and one API port, `8000`; no extra preview ports remain in default config or docs.
 - [x] Production runtime fails fast if Vercel/API environment values would point to localhost, local Docker, or local Ollama.
 - [x] `README.md`, `apps/api/README.md`, and `apps/web/README.md` accurately explain architecture, setup, functionality, sessions, guardrails, live evaluation, scorer metadata, dashboard output, and deployment.
 - [x] Current status, changelog, and phase docs do not conflict with the Phase 16 Vercel deployment plan.
-- [ ] The app remains minimal, responsive, and readable on mobile, tablet, and desktop.
+- [x] The app remains minimal, responsive, and readable on mobile, tablet, and desktop.
 - [x] The first post-execution view is zero-clutter and keeps primary focus on the recommended prompt output.
-- [ ] Session state sticks until the user explicitly ends it.
-- [ ] No seeded demo examples or precreated user data appear in a new production session.
+- [x] Session state sticks until the user explicitly ends it.
+- [x] No seeded demo examples or precreated user data appear in a new production session.
 - [x] All user-facing interpreted outputs are AI-formatted and personalized.
 - [x] Scoring explanations, platform-fit ratings, modification audit trails, platform-fit breakdowns, and recommended actions are formatted for frontend display.
 - [x] Skipped clarifying questions visibly map to injected assumptions in the advanced details UI.
@@ -141,10 +163,10 @@ In progress.
 - [x] The optimization HUD presents concrete micro-actions instead of generic explanatory text blocks.
 - [x] Recommended variants explain why they fit the selected target platform, including Claude versus OpenAI/ChatGPT-style differences when relevant.
 - [x] Dashboard copy translates scores into actionable user feedback instead of exposing raw evaluator internals.
-- [ ] Output guardrails prevent raw JSON, chain-of-thought, unvalidated evaluator text, raw `Problem: ...` echoes, and confusing score dumps from appearing in the UI.
-- [ ] Knowledge sources are licensed and tracked.
-- [ ] RAG outputs are synthesized rather than copied.
-- [ ] DSPy modules conform to existing schemas.
-- [ ] Agent tracks improve guided workflows without hiding user control.
-- [ ] Retrieved content cannot override user settings, confirmed domain, safety rules, scorer output contract, or profile preferences.
-- [ ] Local lint, build, API compile, and smoke checks pass immediately before Phase 16 begins.
+- [x] Output guardrails prevent raw JSON, chain-of-thought, unvalidated evaluator text, raw `Problem: ...` echoes, and confusing score dumps from appearing in the UI.
+- [x] Knowledge sources are licensed and tracked.
+- [x] RAG outputs are synthesized rather than copied.
+- [x] DSPy modules conform to existing schemas.
+- [x] Agent tracks improve guided workflows without hiding user control.
+- [x] Retrieved content cannot override user settings, confirmed domain, safety rules, scorer output contract, or profile preferences.
+- [x] Local lint, build, API compile, and smoke checks pass immediately before Phase 16 begins.

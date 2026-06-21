@@ -51,6 +51,7 @@ export type SessionResponse = {
   rules_accepted: boolean;
   session_metadata: Record<string, unknown>;
   raw_input: string;
+  classification: ClassificationResponse | null;
   detected_domain: string | null;
   detected_intent: string | null;
   risk_level: string | null;
@@ -59,6 +60,9 @@ export type SessionResponse = {
   clarifying_questions: ClarifyingQuestion[];
   answers: Record<string, string>;
   prompt_variant_ids: string[];
+  prompts: PromptVariant[];
+  recommended_prompt_id: string | null;
+  revisions: PromptRevision[];
   created_at: string;
   updated_at: string;
   ended_at: string | null;
@@ -496,6 +500,7 @@ export async function createSession(
   rawInput: string,
   settings: PromptSettings,
   activeSession: ActiveSessionProfile,
+  agentTrack?: string | null,
 ) {
   return request<SessionResponse>("/sessions", {
     method: "POST",
@@ -507,7 +512,8 @@ export async function createSession(
       rules_accepted: activeSession.rules_accepted,
       session_metadata: {
         started_at: activeSession.started_at,
-        frontend_session_version: "phase14-v1",
+        frontend_session_version: "phase15-v1",
+        agent_track: agentTrack ?? null,
       },
     }),
   });

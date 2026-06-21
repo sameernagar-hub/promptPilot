@@ -1,22 +1,26 @@
 "use client";
 
 import {
+  BookOpen,
   Bot,
   Check,
   ChevronDown,
   Copy,
   FileText,
   GitCompare,
+  Hammer,
   History,
   ListChecks,
   LogOut,
   Moon,
   Palette,
+  PenLine,
   Pencil,
   Play,
   Plus,
   RefreshCw,
   Save,
+  Search,
   Settings2,
   ShieldCheck,
   SkipForward,
@@ -24,11 +28,12 @@ import {
   Sun,
   Trash2,
   User,
+  Wrench,
   Zap,
 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   ActiveSessionProfile,
@@ -48,6 +53,7 @@ import {
   PromptVariant,
   PromptRevision,
   SessionAiPlatform,
+  SessionResponse,
   runPipeline,
   runPrompt,
   savePrompt,
@@ -62,9 +68,19 @@ type WorkspaceProps = {
 
 type ThemeName = "sage" | "ink" | "paper";
 type SettingKey = keyof PromptSettings;
+type AgentTrackId = "fix" | "build" | "learn" | "write" | "compare" | "research";
 type QuestionStates = Record<string, ClarifyingQuestionState>;
+type ActiveWorkspaceSnapshot = {
+  session_id: string;
+  selected_prompt_id: string | null;
+  selected_agent_track: AgentTrackId | null;
+  refinement_mode: RefinementMode;
+  show_alternatives: boolean;
+  updated_at: string;
+};
 
 const activeSessionStorageKey = "promptpilot.activeSessionProfile.v1";
+const activeWorkspaceStorageKey = "promptpilot.activeWorkspace.v1";
 const alternateLocalHostname = "localhost";
 const canonicalLocalHostname = "127.0.0.1";
 
@@ -121,6 +137,82 @@ const settingGroups: { title: string; keys: SettingKey[] }[] = [
   {
     title: "Legacy Fit",
     keys: ["length", "skill_level", "tone", "risk", "sources"],
+  },
+];
+
+const agentTracks: {
+  id: AgentTrackId;
+  label: string;
+  icon: ReactNode;
+  placeholder: string;
+  settings: Partial<PromptSettings>;
+  mode?: RefinementMode;
+}[] = [
+  {
+    id: "fix",
+    label: "Fix",
+    icon: <Wrench className="size-3.5" />,
+    placeholder: "Describe what is broken, what changed, and what you have tried.",
+    settings: {
+      interaction_mode: "iterative",
+      reasoning_style: "ask_first",
+      format: "checklist",
+      risk: "normal",
+    },
+  },
+  {
+    id: "build",
+    label: "Build",
+    icon: <Hammer className="size-3.5" />,
+    placeholder: "Describe what you want to build and any constraints that matter.",
+    settings: {
+      interaction_mode: "agentic",
+      reasoning_style: "step_by_step",
+      format: "plan",
+    },
+  },
+  {
+    id: "learn",
+    label: "Learn",
+    icon: <BookOpen className="size-3.5" />,
+    placeholder: "Describe what you want to understand and your current level.",
+    settings: {
+      reasoning_style: "step_by_step",
+      format: "guide",
+      detail_level: "balanced",
+    },
+  },
+  {
+    id: "write",
+    label: "Write",
+    icon: <PenLine className="size-3.5" />,
+    placeholder: "Describe the piece you want to draft, revise, or adapt.",
+    settings: {
+      format: "guide",
+      tone: "friendly",
+      formality: "neutral",
+    },
+  },
+  {
+    id: "compare",
+    label: "Compare",
+    icon: <GitCompare className="size-3.5" />,
+    placeholder: "Describe the options you want compared and the decision criteria.",
+    settings: {
+      reasoning_style: "explore_options",
+      format: "table",
+    },
+  },
+  {
+    id: "research",
+    label: "Research",
+    icon: <Search className="size-3.5" />,
+    placeholder: "Describe what you want investigated and what counts as evidence.",
+    settings: {
+      source_strictness: "evidence_first",
+      sources: "web",
+      format: "table",
+    },
   },
 ];
 
@@ -202,6 +294,8 @@ export function PromptWorkspace({
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [questionStates, setQuestionStates] = useState<QuestionStates>({});
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
+  const [selectedAgentTrack, setSelectedAgentTrack] = useState<AgentTrackId | null>(null);
+  const [sessionAgentTrack, setSessionAgentTrack] = useState<AgentTrackId | null>(null);
   const [customDomain, setCustomDomain] = useState("");
   const [runOutput, setRunOutput] = useState("");
   const [status, setStatus] = useState("Idle");
@@ -212,6 +306,64 @@ export function PromptWorkspace({
   const [showAlternatives, setShowAlternatives] = useState(initialCompare);
   const [apiHealth, setApiHealth] = useState<"ok" | "degraded" | "offline">("offline");
   const isGenerationLoading = loading && generationStageIndex !== null;
+
+  const restoreSessionState = useCallback(
+    (
+      session: SessionResponse,
+      options: {
+        selectedPromptId?: string | null;
+        selectedAgentTrack?: AgentTrackId | null;
+        refinementMode?: RefinementMode;
+        showAlternatives?: boolean;
+        status?: string;
+      } = {},
+    ) => {
+      const nextMode = options.refinementMode ?? "refinement";
+      const loadedAnswers: Record<string, string> = { ...(session.answers ?? {}) };
+      const loadedStates: QuestionStates = {};
+      for (const question of session.clarifying_questions ?? []) {
+        loadedStates[question.id] = question.state ?? "unanswered";
+        if (question.answer) {
+          loadedAnswers[question.id] = question.answer;
+        }
+      }
+
+      setSessionId(session.id);
+      setProblem(session.raw_input);
+      setSessionProblem(session.raw_input);
+      setSettings(mergePromptSettings(defaultSettings, session.user_settings));
+      setAnswers(loadedAnswers);
+      setQuestionStates(loadedStates);
+      setSelectedPromptId(
+        options.selectedPromptId ??
+          session.recommended_prompt_id ??
+          session.prompts[0]?.id ??
+          null,
+      );
+      const sessionTrack = normalizeAgentTrack(session.session_metadata.agent_track);
+      const restoredTrack = options.selectedAgentTrack ?? sessionTrack;
+      setSelectedAgentTrack(restoredTrack);
+      setSessionAgentTrack(sessionTrack);
+      setRefinementMode(nextMode);
+      setShowAlternatives(options.showAlternatives ?? initialCompare);
+      setRunOutput("");
+      setError("");
+      setStatus(options.status ?? session.status);
+
+      const restoredProfile = activeSessionProfileFromSession(session);
+      if (restoredProfile) {
+        setActiveSession(restoredProfile);
+        saveActiveSessionProfile(restoredProfile);
+      }
+
+      const restoredPipeline = pipelineFromSession(session, nextMode);
+      setPipeline(restoredPipeline);
+      setCustomDomain(
+        restoredPipeline ? restoredPipeline.classification.domain.replaceAll("_", " ") : "",
+      );
+    },
+    [initialCompare],
+  );
 
   useEffect(() => {
     if (window.location.hostname !== alternateLocalHostname) {
@@ -229,18 +381,38 @@ export function PromptWorkspace({
 
     const restoreTimer = window.setTimeout(() => {
       const stored = loadActiveSessionProfile();
-      if (!stored) {
+      if (stored) {
+        setActiveSession(stored);
+        setSettings((current) => ({
+          ...current,
+          target_platform: platformToTarget(stored.primary_ai_platform),
+        }));
+      }
+      const workspace = loadActiveWorkspaceSnapshot();
+      if (!workspace?.session_id) {
         return;
       }
-      setActiveSession(stored);
-      setSettings((current) => ({
-        ...current,
-        target_platform: platformToTarget(stored.primary_ai_platform),
-      }));
+      getSession(workspace.session_id)
+        .then((session) => {
+          if (session.ended_at) {
+            clearActiveWorkspaceSnapshot();
+            return;
+          }
+          restoreSessionState(session, {
+            selectedPromptId: workspace.selected_prompt_id,
+            selectedAgentTrack: workspace.selected_agent_track,
+            refinementMode: workspace.refinement_mode,
+            showAlternatives: workspace.show_alternatives,
+            status: "Restored",
+          });
+        })
+        .catch(() => {
+          clearActiveWorkspaceSnapshot();
+        });
     }, 0);
 
     return () => window.clearTimeout(restoreTimer);
-  }, [initialSessionId]);
+  }, [initialSessionId, restoreSessionState]);
 
   useEffect(() => {
     getHealth()
@@ -250,6 +422,9 @@ export function PromptWorkspace({
 
   useEffect(() => {
     if (initialSessionId) {
+      return;
+    }
+    if (loadActiveWorkspaceSnapshot()?.session_id) {
       return;
     }
     getProfile()
@@ -284,38 +459,37 @@ export function PromptWorkspace({
     }
     getSession(initialSessionId)
       .then((session) => {
-        setProblem(session.raw_input);
-        setSessionProblem(session.raw_input);
-        setSettings({ ...defaultSettings, ...session.user_settings });
-        if (session.display_name && session.primary_ai_platform && session.rules_accepted) {
-          const restored = {
-            display_name: session.display_name,
-            primary_ai_platform: normalizeSessionPlatform(session.primary_ai_platform),
-            rules_accepted: session.rules_accepted,
-            started_at:
-              typeof session.session_metadata.started_at === "string"
-                ? session.session_metadata.started_at
-                : session.created_at,
-          };
-          setActiveSession(restored);
-          saveActiveSessionProfile(restored);
-        }
-        const loadedAnswers: Record<string, string> = { ...(session.answers ?? {}) };
-        const loadedStates: QuestionStates = {};
-        for (const question of session.clarifying_questions ?? []) {
-          loadedStates[question.id] = question.state ?? "unanswered";
-          if (question.answer) {
-            loadedAnswers[question.id] = question.answer;
-          }
-        }
-        setAnswers(loadedAnswers);
-        setQuestionStates(loadedStates);
-        setStatus(session.status);
+        restoreSessionState(session, {
+          selectedPromptId: session.recommended_prompt_id,
+          showAlternatives: initialCompare,
+          status: session.status,
+        });
       })
       .catch((caught: unknown) =>
         setError(caught instanceof Error ? caught.message : "Session not found"),
       );
-  }, [initialSessionId]);
+  }, [initialCompare, initialSessionId, restoreSessionState]);
+
+  useEffect(() => {
+    if (!activeSession?.rules_accepted || !sessionId) {
+      return;
+    }
+    saveActiveWorkspaceSnapshot({
+      session_id: sessionId,
+      selected_prompt_id: selectedPromptId,
+      selected_agent_track: selectedAgentTrack,
+      refinement_mode: refinementMode,
+      show_alternatives: showAlternatives,
+      updated_at: new Date().toISOString(),
+    });
+  }, [
+    activeSession?.rules_accepted,
+    refinementMode,
+    selectedAgentTrack,
+    selectedPromptId,
+    sessionId,
+    showAlternatives,
+  ]);
 
   const prompts = useMemo(() => pipeline?.prompts ?? [], [pipeline?.prompts]);
   const recommendedPrompt = useMemo(
@@ -331,6 +505,22 @@ export function PromptWorkspace({
       recommendedPrompt,
     [prompts, recommendedPrompt, selectedPromptId],
   );
+  const selectedTrack = useMemo(
+    () => agentTracks.find((track) => track.id === selectedAgentTrack) ?? null,
+    [selectedAgentTrack],
+  );
+
+  function applyAgentTrack(trackId: AgentTrackId) {
+    const track = agentTracks.find((item) => item.id === trackId);
+    if (!track) {
+      return;
+    }
+    setSelectedAgentTrack(track.id);
+    setSettings((current) => mergePromptSettings(current, track.settings));
+    if (track.mode) {
+      setRefinementMode(track.mode);
+    }
+  }
 
   function applyPipelineResult(result: PipelineResponse) {
     setPipeline(result);
@@ -384,9 +574,12 @@ export function PromptWorkspace({
     setError("");
     setRunOutput("");
     try {
-      const shouldCreateSession = !sessionId || problem.trim() !== sessionProblem;
+      const shouldCreateSession =
+        !sessionId ||
+        problem.trim() !== sessionProblem ||
+        selectedAgentTrack !== sessionAgentTrack;
       const session = shouldCreateSession
-        ? await createSession(problem.trim(), settings, activeSession)
+        ? await createSession(problem.trim(), settings, activeSession, selectedAgentTrack)
         : { id: sessionId };
       setGenerationStageIndex(1);
       const submittedAnswers = shouldCreateSession ? {} : nextAnswers;
@@ -394,6 +587,7 @@ export function PromptWorkspace({
       if (shouldCreateSession) {
         setSessionId(session.id);
         setSessionProblem(problem.trim());
+        setSessionAgentTrack(selectedAgentTrack);
         setAnswers({});
         setQuestionStates({});
       }
@@ -540,6 +734,7 @@ export function PromptWorkspace({
   }
 
   function startNewSession() {
+    clearActiveWorkspaceSnapshot();
     setSessionId(null);
     setSessionProblem("");
     setProblem("");
@@ -547,6 +742,8 @@ export function PromptWorkspace({
     setAnswers({});
     setQuestionStates({});
     setSelectedPromptId(null);
+    setSelectedAgentTrack(null);
+    setSessionAgentTrack(null);
     setRunOutput("");
     setCustomDomain("");
     setSettings({
@@ -562,6 +759,7 @@ export function PromptWorkspace({
   async function endActiveSession() {
     const endingSessionId = sessionId;
     clearActiveSessionProfile();
+    clearActiveWorkspaceSnapshot();
     setActiveSession(null);
     startNewSession();
     if (endingSessionId) {
@@ -673,8 +871,32 @@ export function PromptWorkspace({
               className={cn("min-h-44 w-full resize-y rounded-md border p-3 text-sm leading-6 outline-none focus:ring-4", styles.input)}
               value={problem}
               onChange={(event) => setProblem(event.target.value)}
-              placeholder="Describe what you want the AI to help with."
+              placeholder={
+                selectedTrack?.placeholder ?? "Describe what you want the AI to help with."
+              }
             />
+            <div className="mt-3 flex flex-wrap gap-2">
+              {agentTracks.map((track) => {
+                const active = track.id === selectedAgentTrack;
+                return (
+                  <button
+                    key={track.id}
+                    type="button"
+                    className={cn(
+                      "flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition",
+                      styles.border,
+                      active ? cn(styles.soft, styles.primaryText) : "hover:bg-white/60",
+                    )}
+                    title={`${track.label} track`}
+                    aria-pressed={active}
+                    onClick={() => applyAgentTrack(track.id)}
+                  >
+                    {track.icon}
+                    <span>{track.label}</span>
+                  </button>
+                );
+              })}
+            </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button type="button" onClick={() => generate()} disabled={loading}>
                 <Sparkles />
@@ -785,7 +1007,7 @@ export function PromptWorkspace({
                 <h2 className="text-sm font-semibold">Run Result</h2>
               </div>
               <pre className="whitespace-pre-wrap rounded-md bg-[#101417] p-3 text-xs leading-5 text-[#f3f5ee]">
-                {runOutput}
+                {displayPromptText(runOutput)}
               </pre>
             </div>
           ) : null}
@@ -1091,9 +1313,9 @@ function QuestionsPanel({
               <div className={cn("rounded-md border p-3", styles.border)} key={question.id}>
                 <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                   <label className="block min-w-0 flex-1">
-                    <span className="block text-sm font-medium">{question.question}</span>
+                    <span className="block text-sm font-medium">{displayText(question.question)}</span>
                     <span className={cn("mt-1 block text-xs leading-5", styles.subtle)}>
-                      {question.reason}
+                      {displayText(question.reason)}
                     </span>
                   </label>
                   <span className={questionStateClass(state)}>
@@ -1148,7 +1370,7 @@ function QuestionsPanel({
         <div className={cn("mt-3 rounded-md border p-3 text-xs leading-5", styles.border, styles.soft)}>
           <div className="mb-1 font-medium">Assumptions</div>
           {assumptions.map((assumption) => (
-            <div key={assumption}>- {assumption}</div>
+            <div key={assumption}>- {displayText(assumption)}</div>
           ))}
         </div>
       ) : null}
@@ -1189,7 +1411,9 @@ function RecommendedPrompt({
             {prompt?.id === recommendedPromptId ? "Recommended Prompt" : "Selected Prompt"}
           </h2>
           <p className={cn("text-xs", styles.subtle)}>
-            {prompt?.recommendation_summary ?? "Ready after generation"}
+            {prompt
+              ? displayText(prompt.recommendation_summary, "Ready after scoring")
+              : "Ready after generation"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1211,7 +1435,7 @@ function RecommendedPrompt({
         <div className={cn("rounded-md border p-4", styles.border, styles.soft)}>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <FileText className={cn("size-4", styles.primaryText)} />
-            <span className="font-medium">{prompt.title}</span>
+            <span className="font-medium">{displayText(prompt.title)}</span>
             {prompt.id === recommendedPromptId ? (
               <span className="rounded-md bg-emerald-100 px-2 py-1 text-xs text-emerald-800">
                 Recommended
@@ -1220,7 +1444,7 @@ function RecommendedPrompt({
           </div>
           {prompt.explanation ? (
             <p className={cn("mb-3 rounded-md bg-white/60 px-3 py-2 text-xs leading-5", styles.subtle)}>
-              {prompt.explanation}
+              {displayText(prompt.explanation)}
             </p>
           ) : null}
           <OptimizationHud prompt={prompt} styles={styles} />
@@ -1232,10 +1456,10 @@ function RecommendedPrompt({
                 <ChevronDown className="size-3" />
                 Raw prompt text
               </span>
-              <span className={styles.subtle}>{prompt.prompt_text.length} chars</span>
+              <span className={styles.subtle}>{displayPromptText(prompt.prompt_text).length} chars</span>
             </summary>
             <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap break-words border-t border-black/5 p-3 text-sm leading-7">
-              {prompt.prompt_text}
+              {displayPromptText(prompt.prompt_text)}
             </pre>
           </details>
           <EvaluationDetails prompt={prompt} styles={styles} />
@@ -1257,7 +1481,7 @@ function PromptContractView({
   styles: (typeof themeStyles)[ThemeName];
 }) {
   const contract = useMemo(
-    () => parsePromptContract(prompt.prompt_text),
+    () => parsePromptContract(displayPromptText(prompt.prompt_text)),
     [prompt.prompt_text],
   );
   return (
@@ -1318,7 +1542,7 @@ function PromptFieldPanel({
               <div className={cn("text-[11px] font-medium uppercase tracking-normal", styles.subtle)}>
                 {item.label}
               </div>
-              <div>{item.value}</div>
+              <div>{displayText(item.value)}</div>
             </div>
           ))
         ) : (
@@ -1346,7 +1570,7 @@ function PromptListPanel({
           items.map((item) => (
             <div key={item} className="flex gap-2">
               <span className={cn("mt-2 size-1.5 shrink-0 rounded-full", styles.primary)} />
-              <span className="min-w-0 break-words">{item}</span>
+              <span className="min-w-0 break-words">{displayText(item)}</span>
             </div>
           ))
         ) : (
@@ -1466,10 +1690,10 @@ function OptimizationHud({
               styles.border,
               action.priority === "high" ? "bg-amber-50 text-amber-900" : "",
             )}
-            title={action.impact}
+            title={displayText(action.impact)}
           >
             <Plus className="size-3 shrink-0" />
-            <span className="min-w-0 truncate">{action.label}</span>
+            <span className="min-w-0 truncate">{displayText(action.label)}</span>
           </span>
         ))}
       </div>
@@ -1493,8 +1717,8 @@ function GuardrailPanel({
         <h2 className="text-sm font-semibold">Request Blocked</h2>
       </div>
       <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-        <p>{message ?? "This request cannot be optimized as written."}</p>
-        {safeRedirect ? <p className="mt-2">{safeRedirect}</p> : null}
+        <p>{displayText(message, "This request cannot be optimized as written.")}</p>
+        {safeRedirect ? <p className="mt-2">{displayText(safeRedirect)}</p> : null}
       </div>
     </div>
   );
@@ -1522,7 +1746,7 @@ function EvaluationDetails({
       </summary>
       <div className="space-y-3 border-t border-black/5 p-3 text-xs leading-5">
         {prompt.why_this_variant ? (
-          <p className={styles.subtle}>{prompt.why_this_variant}</p>
+          <p className={styles.subtle}>{displayText(prompt.why_this_variant)}</p>
         ) : null}
         <div className="grid gap-2 sm:grid-cols-2">
           {Object.entries(prompt.score_breakdown).map(([key, value]) => (
@@ -1545,7 +1769,7 @@ function EvaluationDetails({
             title="Assumptions"
             items={prompt.assumption_notes.map((item) => ({
               id: item,
-              label: item,
+              label: displayText(item),
               detail: "Added because required context was skipped or missing.",
             }))}
             styles={styles}
@@ -1654,8 +1878,8 @@ function DetailList({
       <div className="space-y-2">
         {items.slice(0, 6).map((item) => (
           <div key={item.id} className={cn("rounded-md border p-2", styles.border)}>
-            <div className="font-medium">{item.label}</div>
-            <div className={styles.subtle}>{item.detail}</div>
+            <div className="font-medium">{displayText(item.label)}</div>
+            <div className={styles.subtle}>{displayText(item.detail)}</div>
           </div>
         ))}
       </div>
@@ -1682,7 +1906,7 @@ function AlternativePrompt({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold">{prompt.title}</h3>
+          <h3 className="text-sm font-semibold">{displayText(prompt.title)}</h3>
           <p className={cn("text-xs", styles.subtle)}>{labelize(prompt.strategy)}</p>
         </div>
         <span className={cn("text-sm font-semibold", styles.primaryText)}>
@@ -1690,7 +1914,7 @@ function AlternativePrompt({
         </span>
       </div>
       <p className={cn("mt-2 line-clamp-3 text-xs leading-5", styles.subtle)}>
-        {prompt.prompt_text}
+        {displayPromptText(prompt.prompt_text)}
       </p>
     </button>
   );
@@ -1806,7 +2030,9 @@ function RevisionHistory({
               </span>
             </div>
             {revision.rationale ? (
-              <p className={cn("text-xs leading-5", styles.subtle)}>{revision.rationale}</p>
+              <p className={cn("text-xs leading-5", styles.subtle)}>
+                {displayText(revision.rationale)}
+              </p>
             ) : null}
           </div>
         ))}
@@ -1940,6 +2166,11 @@ function parsePromptContract(promptText: string) {
     "produce the final answer with this structure": "outputStructure",
     "user preferences": "preferences",
   };
+  const ignoredSections = new Set([
+    "knowledge support",
+    "retrieval guardrails",
+    "retrieved pattern guidance",
+  ]);
   let currentSection: keyof typeof contract | null = null;
   for (const rawLine of promptText.split(/\r?\n/)) {
     const trimmed = rawLine.trim();
@@ -1949,6 +2180,10 @@ function parsePromptContract(promptText: string) {
     const heading = trimmed.replace(/:$/, "").toLowerCase();
     if (sectionByHeading[heading]) {
       currentSection = sectionByHeading[heading];
+      continue;
+    }
+    if (ignoredSections.has(heading)) {
+      currentSection = null;
       continue;
     }
     if (currentSection === "preferences") {
@@ -2021,6 +2256,152 @@ function labelize(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function activeSessionProfileFromSession(
+  session: SessionResponse,
+): ActiveSessionProfile | null {
+  if (!session.display_name || !session.primary_ai_platform || !session.rules_accepted) {
+    return null;
+  }
+  return {
+    display_name: session.display_name,
+    primary_ai_platform: normalizeSessionPlatform(session.primary_ai_platform),
+    rules_accepted: true,
+    started_at:
+      typeof session.session_metadata.started_at === "string"
+        ? session.session_metadata.started_at
+        : session.created_at,
+  };
+}
+
+function pipelineFromSession(
+  session: SessionResponse,
+  mode: RefinementMode,
+): PipelineResponse | null {
+  if (!session.classification && !session.prompts.length && !session.clarifying_questions.length) {
+    return null;
+  }
+  const assumptions = assumptionsFromSessionQuestions(session.clarifying_questions);
+  const needsClarification =
+    session.status === "clarification_pending" ||
+    (!session.prompts.length &&
+      session.clarifying_questions.some(
+        (question) =>
+          question.required &&
+          (question.state === "unanswered" || question.state === "skipped"),
+      ));
+  return {
+    session_id: session.id,
+    mode,
+    classification: session.classification ?? fallbackClassification(session),
+    needs_clarification: needsClarification,
+    questions: session.clarifying_questions ?? [],
+    prompts: session.prompts ?? [],
+    recommended_prompt_id: session.recommended_prompt_id,
+    assumptions,
+    revisions: session.revisions ?? [],
+    timeline: ["restored"],
+    stage_timings_ms: latestRevisionTimings(session.revisions),
+    guardrail_status: "passed",
+    guardrail_message: null,
+    safe_redirect: null,
+  };
+}
+
+function fallbackClassification(
+  session: SessionResponse,
+): PipelineResponse["classification"] {
+  const domain = session.detected_domain ?? "general_problem_solving";
+  return {
+    domain,
+    primary_domain: domain,
+    subdomain: null,
+    intent: session.detected_intent ?? "clarify_and_plan",
+    risk_level: session.risk_level ?? "low",
+    confidence: 0.5,
+    signals: [],
+    evidence: [],
+    alternative_domains: [],
+    needs_domain_confirmation: false,
+    confirmed_domain: null,
+    domain_source: "detected",
+  };
+}
+
+function assumptionsFromSessionQuestions(
+  questions: SessionResponse["clarifying_questions"],
+) {
+  return questions
+    .filter(
+      (question) =>
+        question.required &&
+        (question.state === "skipped" || question.state === "unanswered"),
+    )
+    .map((question) => `${question.id.replaceAll("_", " ")} is unspecified`);
+}
+
+function latestRevisionTimings(revisions: PromptRevision[]) {
+  const timings = revisions[0]?.revision_metadata.stage_timings_ms;
+  if (!timings || typeof timings !== "object" || Array.isArray(timings)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(timings)
+      .map(([key, value]) => [key, typeof value === "number" ? value : Number(value)])
+      .filter(([, value]) => Number.isFinite(value)),
+  ) as Record<string, number>;
+}
+
+function displayText(
+  value: string | null | undefined,
+  fallback = "Hidden because this output looked internal or unformatted.",
+) {
+  if (!value) {
+    return fallback;
+  }
+  const cleaned = value.replace(/^\s*Problem\s*:\s*/i, "").trim();
+  if (!cleaned) {
+    return fallback;
+  }
+  if (looksLikeRawJson(cleaned) || looksInternalOutput(cleaned)) {
+    return fallback;
+  }
+  return cleaned;
+}
+
+function displayPromptText(value: string) {
+  const cleaned = value
+    .split(/\r?\n/)
+    .map((line) =>
+      line
+        .replace(/^\s*Problem\s*:\s*/i, "")
+        .replace(/^(\s*(?:Context|User request context):\s*)Problem\s*:\s*/i, "$1"),
+    )
+    .join("\n")
+    .trim();
+  if (!cleaned || looksLikeRawJson(cleaned) || looksInternalOutput(cleaned)) {
+    return "Prompt text is hidden because the output looked internal or unformatted.";
+  }
+  return cleaned;
+}
+
+function looksLikeRawJson(value: string) {
+  if (!/^[{[]/.test(value.trim())) {
+    return false;
+  }
+  try {
+    JSON.parse(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function looksInternalOutput(value: string) {
+  return /\b(chain[-\s]?of[-\s]?thought|internal (?:scoring rubric|debug|evaluator|trace|system prompt)|raw evaluator|evaluator prompt)\b/i.test(
+    value,
+  );
+}
+
 function loadActiveSessionProfile(): ActiveSessionProfile | null {
   if (typeof window === "undefined") {
     return null;
@@ -2075,11 +2456,73 @@ function clearActiveSessionProfile() {
   }
 }
 
+function loadActiveWorkspaceSnapshot(): ActiveWorkspaceSnapshot | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    const stored = window.localStorage.getItem(activeWorkspaceStorageKey);
+    if (!stored) {
+      return null;
+    }
+    const parsed = JSON.parse(stored) as Partial<ActiveWorkspaceSnapshot>;
+    if (typeof parsed.session_id !== "string" || !parsed.session_id.trim()) {
+      return null;
+    }
+    return {
+      session_id: parsed.session_id,
+      selected_prompt_id:
+        typeof parsed.selected_prompt_id === "string"
+          ? parsed.selected_prompt_id
+          : null,
+      selected_agent_track: normalizeAgentTrack(parsed.selected_agent_track),
+      refinement_mode:
+        parsed.refinement_mode === "quick" ? "quick" : "refinement",
+      show_alternatives: Boolean(parsed.show_alternatives),
+      updated_at:
+        typeof parsed.updated_at === "string"
+          ? parsed.updated_at
+          : new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveActiveWorkspaceSnapshot(snapshot: ActiveWorkspaceSnapshot) {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    window.localStorage.setItem(activeWorkspaceStorageKey, JSON.stringify(snapshot));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearActiveWorkspaceSnapshot() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.removeItem(activeWorkspaceStorageKey);
+  } catch {
+    // Workspace reset should still succeed if local persistence is unavailable.
+  }
+}
+
 function normalizeSessionPlatform(value: unknown): SessionAiPlatform {
   const valid = new Set(onboardingPlatforms.map((option) => option.value));
   return typeof value === "string" && valid.has(value as SessionAiPlatform)
     ? (value as SessionAiPlatform)
     : "other";
+}
+
+function normalizeAgentTrack(value: unknown): AgentTrackId | null {
+  return typeof value === "string" && agentTracks.some((track) => track.id === value)
+    ? (value as AgentTrackId)
+    : null;
 }
 
 function platformToTarget(platform: SessionAiPlatform): PromptSettings["target_platform"] {
