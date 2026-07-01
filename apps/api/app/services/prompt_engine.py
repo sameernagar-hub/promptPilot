@@ -17,6 +17,7 @@ from app.schemas import (
     RefinementMode,
 )
 from app.services.classifier import classify_problem
+from app.services.coaching_habits import attach_coaching_observations
 from app.services.guardrails import evaluate_guardrails
 from app.services.knowledge_support import retrieve_knowledge_context
 from app.services.profile_analyzer import get_prompt_profile
@@ -222,6 +223,8 @@ def run_prompt_engine(
             profile_traits=profile_traits,
             session_profile=_session_profile_metadata(session),
         )
+    with _stage_timer(stage_timings_ms, "coaching_habits"):
+        scored = attach_coaching_observations(session, scored)
     with _stage_timer(stage_timings_ms, "score_persistence"):
         for prompt in scored:
             store.upsert_prompt(prompt)

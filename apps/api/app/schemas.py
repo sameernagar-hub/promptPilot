@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any, Literal
 
@@ -41,6 +43,7 @@ TemperaturePreference = Literal["precise", "balanced", "creative"]
 ReasoningStyle = Literal["direct_answer", "step_by_step", "ask_first", "explore_options"]
 SourceStrictness = Literal["none", "cite_when_needed", "official_only", "evidence_first"]
 InteractionMode = Literal["one_shot", "iterative", "agentic"]
+CoachingFeedback = Literal["confirmed", "rejected", "unset"]
 PromptSourceAllowedUsage = Literal[
     "pattern_synthesis_only",
     "internal_project_example",
@@ -222,6 +225,27 @@ class SubmitAnswersRequest(BaseModel):
     answers: list[AnswerItem]
 
 
+class CoachingObservationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    session_id: str
+    prompt_variant_id: str | None = None
+    habit_id: str
+    habit_label: str
+    evidence_excerpt: str
+    source_session_ids: list[str] = Field(default_factory=list)
+    confidence: float
+    applied_fix: str
+    user_feedback: CoachingFeedback = "unset"
+    created_at: datetime
+    updated_at: datetime
+
+
+class CoachingFeedbackRequest(BaseModel):
+    feedback: Literal["confirmed", "rejected"]
+
+
 class PromptVariantResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -244,6 +268,7 @@ class PromptVariantResponse(BaseModel):
     user_trait_alignment: list[dict[str, Any]] = Field(default_factory=list)
     optimization_paths: list[dict[str, Any]] = Field(default_factory=list)
     recommended_actions: list[dict[str, Any]] = Field(default_factory=list)
+    coaching_observations: list[CoachingObservationResponse] = Field(default_factory=list)
     scorer_metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
 
@@ -516,6 +541,74 @@ class ConversationImportRequest(BaseModel):
     source_type: ImportSourceType = "paste"
     title: str | None = Field(default=None, max_length=240)
     raw_text: str = Field(..., min_length=1, max_length=250_000)
+
+
+class PromptIntelligenceAnalyzeRequest(BaseModel):
+    import_id: str | None = None
+    platform: ImportPlatform = "manual"
+    source_type: ImportSourceType = "paste"
+    title: str | None = Field(default=None, max_length=240)
+    raw_text: str | None = Field(default=None, min_length=1, max_length=250_000)
+
+    @model_validator(mode="after")
+    def require_import_or_text(self) -> "PromptIntelligenceAnalyzeRequest":
+        if not self.import_id and not (self.raw_text and self.raw_text.strip()):
+            raise ValueError("Provide import_id or raw_text to analyze")
+        if self.raw_text is not None:
+            self.raw_text = self.raw_text.strip()
+        return self
+
+
+class PromptIntelligenceScore(BaseModel):
+    key: str
+    label: str
+    score: int = Field(..., ge=0, le=100)
+    verdict: str
+    explanation: str
+    improvement: str
+    evidence: list[str] = Field(default_factory=list)
+
+
+class PromptBehaviorPattern(BaseModel):
+    title: str
+    detail: str
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    evidence: list[str] = Field(default_factory=list)
+
+
+class PromptIntelligenceRecommendation(BaseModel):
+    title: str
+    detail: str
+    priority: Literal["high", "medium", "low"] = "medium"
+    example_rewrite: str | None = None
+
+
+class PromptIntelligenceComparison(BaseModel):
+    label: str
+    detail: str
+
+
+class PromptIntelligenceReportResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    profile_id: str
+    import_id: str | None = None
+    provider: str
+    model: str
+    status: str
+    headline: str
+    summary: str
+    style_scores: list[PromptIntelligenceScore] = Field(default_factory=list)
+    behavior_patterns: list[PromptBehaviorPattern] = Field(default_factory=list)
+    recommendations: list[PromptIntelligenceRecommendation] = Field(default_factory=list)
+    next_prompt_recipe: list[str] = Field(default_factory=list)
+    comparisons: list[PromptIntelligenceComparison] = Field(default_factory=list)
+    evidence: list[ProfileEvidenceReference] = Field(default_factory=list)
+    report_metadata: dict[str, Any] = Field(default_factory=dict)
+    source_import: ConversationImportResponse | None = None
+    created_at: datetime
+    updated_at: datetime
 
 
 class ImportedMessageResponse(BaseModel):

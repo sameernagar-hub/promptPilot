@@ -1,10 +1,5 @@
-import { PromptWorkspace } from "@/components/prompt-workspace";
+import { redirect } from "next/navigation";
 
-export default async function SessionPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  return <PromptWorkspace initialSessionId={id} />;
+export default function SessionPage() {
+  redirect("/");
 }

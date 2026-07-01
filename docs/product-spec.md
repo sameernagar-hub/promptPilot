@@ -1,17 +1,36 @@
 # Product Spec
 
-PromptPilot is a prompting experience platform.
+PromptPilot is a prompt intelligence profile.
 
-It starts with the completed MVP flow: capture a messy problem, classify it, ask clarifying questions, generate prompt variants, score them, and let the user save or run the result.
+The product answers three questions:
 
-The revised product direction adds a user intelligence layer:
+1. What is my prompting style?
+2. What are my prompts telling me about my habits?
+3. How can I improve the way I ask AI systems for help?
 
-1. Detect prompting traits from sessions and imported AI chats.
-2. Build a user prompting profile with evidence and confidence.
-3. Detect the domain openly, then ask the user to confirm or correct it.
-4. Ask clarifying questions before recommending a refined prompt.
-5. Let the user control tone, formality, detail, temperature, risk posture, source strictness, output format, and target platform.
-6. Generate detailed prompts tailored for Codex, Claude, ChatGPT, Gemini, Cursor, or a generic AI platform.
-7. Let the user ask questions about their own prompting patterns.
+## Primary Workflow
 
-PromptPilot should feel like a guided prompting companion, not a static prompt template library.
+1. Import a prompt session from Codex, Claude, ChatGPT, Cursor, Gemini, Markdown, JSON, or pasted text.
+2. Normalize and redact obvious secrets.
+3. Click `Judge My Prompts`.
+4. Generate a prompt intelligence report with style scores, behavior patterns, evidence excerpts, recommendations, comparisons, and a next-prompt recipe.
+5. Update the prompt intelligence profile from accumulated sessions and imports.
+
+## Product Direction
+
+PromptPilot should feel like a sharp prompt behavior analyst, not a prompt template generator.
+
+The app should prioritize:
+
+- Evidence-backed observations over generic advice.
+- User-owned imports over demo content.
+- Prompt behavior patterns over prompt formatting.
+- OpenAI-backed judgment with deterministic local fallback.
+- A main screen that starts with import and analysis.
+- Profile correction controls so the user can reject or refine inferred traits.
+
+The app should not center:
+
+- Prompt generation as the first screen.
+- Saved prompt libraries as a primary workflow.
+- Platform-specific prompt formatting as the core product promise.

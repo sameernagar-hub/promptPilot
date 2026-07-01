@@ -11,6 +11,7 @@ from app.schemas import (
     PromptSettings,
     RetrievedKnowledgePattern,
 )
+from app.services.domain_capabilities import uses_code_platform_scaffolding
 
 
 ALLOWED_KNOWLEDGE_USAGE = {
@@ -194,7 +195,10 @@ def _synthesized_guidance(
         pieces.append("label assumptions instead of silently filling gaps")
     if "sources" in marker_set or settings.source_strictness != "none":
         pieces.append("keep source expectations visible when claims need support")
-    if "verification" in marker_set or settings.target_platform in {"codex", "cursor"}:
+    if "verification" in marker_set or uses_code_platform_scaffolding(
+        settings.target_platform,
+        classification.domain,
+    ):
         pieces.append("include verification or test feedback where relevant")
     if "steps" in marker_set:
         pieces.append("prefer ordered next actions over broad explanation")

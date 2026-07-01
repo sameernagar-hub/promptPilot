@@ -1,5 +1,5 @@
-import { SavedLibrary } from "@/components/saved-library";
+import { redirect } from "next/navigation";
 
 export default function LibraryPage() {
-  return <SavedLibrary />;
+  redirect("/");
 }

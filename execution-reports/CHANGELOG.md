@@ -2,6 +2,46 @@
 
 This changelog records every meaningful command, check, file edit, and project-control decision.
 
+## 2026-07-01
+
+### Phase 15.5 Prompt Intelligence Pivot
+
+- Pivoted PromptPilot from prompt generation to prompt intelligence profiling.
+  - The `/` route now mounts an import-and-judge workspace.
+  - The primary user action is `Judge My Prompts`.
+  - Users can paste or upload Codex, Claude, ChatGPT, Cursor, Gemini, Markdown, JSON, or text prompt sessions.
+- Added OpenAI-backed prompt intelligence analysis.
+  - Added `prompt_intelligence_reports` persistence.
+  - Added `POST /intelligence/analyze`.
+  - Added `GET /intelligence/reports`, `GET /intelligence/reports/latest`, and `GET /intelligence/reports/{report_id}`.
+  - OpenAI Responses API is used when `LLM_PROVIDER=openai` and `OPENAI_API_KEY` are configured.
+  - Deterministic local analysis remains as a fallback for development and verification.
+- Removed the active frontend prompt-generation surface.
+  - Replaced `/` with the prompt intelligence workspace.
+  - Redirected `/sessions/{id}`, `/compare/{id}`, and `/library` to `/`.
+  - Deleted the old frontend generator workspace and saved prompt library components.
+- Updated environment defaults and documentation.
+  - `.env.example` and `apps/api/.env.example` now default to `LLM_PROVIDER=openai`, `OPENAI_API_KEY=`, and `DEFAULT_MODEL=gpt-5.5`.
+  - Rewrote the root README and API README around the new product shape.
+  - Updated product, architecture, prompt-engine, and current-status docs for Phase 16 readiness.
+
+### Phase 15.5 Pre-Deploy Update
+
+- Fixed domain/platform mismatch in prompt assembly.
+  - Added domain capability gating for code-like, evidence-heavy, and executable-environment domains.
+  - Codex/Cursor code scaffolding now appears only for code-like domains.
+  - Non-code domains downgrade `evidence_first` and `agentic` renderings to domain-appropriate source boundaries and guide-style interaction.
+- Added the first coaching-core loop.
+  - Introduced explicit habit observations for missing success criteria, target audience, and output constraints.
+  - Persisted coaching observations with evidence excerpts, source session IDs, confidence, applied fixes, and user feedback.
+  - Added confirm/reject feedback in the workspace and a session feedback endpoint.
+- Extended regression coverage for art/Codex, code/Codex, non-code source/interaction gating, coaching feedback persistence, and success-criteria false-positive prevention.
+- Verification passed:
+  - `uv --directory apps/api run python -m compileall app`
+  - `uv --directory apps/api run python ../../evals/promptfoo/phase14_regression.py`
+  - `pnpm.cmd --dir apps/web lint`
+  - `pnpm.cmd --dir apps/web build`
+
 ## 2026-06-20
 
 ### Phase 15 Completion

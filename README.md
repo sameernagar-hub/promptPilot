@@ -1,32 +1,37 @@
 # PromptPilot
 
-PromptPilot is a full-stack prompting workspace that turns a messy request into a clearer, platform-aware prompt. It starts with a clean user session, confirms the domain when needed, asks or skips clarifying questions, generates prompt variants, scores them, and explains the recommended version in plain language.
-
-Project owner: Sameer Nagar
+PromptPilot is a prompt intelligence profile. It imports prompt sessions from Codex, Claude, ChatGPT, Cursor, Gemini, or plain Markdown, then judges what those prompts reveal about your prompting behavior.
 
 Core promise:
 
-> Understand how you prompt. Then help you ask every AI system better.
+> Understand how you prompt. Then improve the way you ask every AI system.
+
+PromptPilot is no longer centered on generating or formatting prompts. The main workflow is now import, judge, explain, and improve.
+
+Project owner: Sameer Nagar
 
 ## Current Status
 
-Phase 15 is complete. PromptPilot is ready for Phase 16 production-first Vercel deployment after cleanup, documentation, output polish, backend knowledge/RAG/DSPy support hardening, optional agent tracks, responsive QA, and final local verification.
+Phase 15.5 is complete and the project is ready for Phase 16 final production work.
 
-The active local contract is intentionally simple:
+The active product surface is:
 
-- Frontend: `http://localhost:3000` or `http://127.0.0.1:3000`
-- API: `http://localhost:8000` or `http://127.0.0.1:8000`
-- No extra preview ports are part of the default local workflow.
+- Import or paste a `.md`, `.txt`, `.json`, or transcript-style prompt session.
+- Click `Judge My Prompts`.
+- Get a prompt intelligence report with style scores, evidence excerpts, behavior patterns, recommendations, platform comparisons, and a next-prompt recipe.
+- Review the prompt intelligence profile and import ledger.
+
+The old prompt generation page has been removed from active frontend routes. Legacy backend session/prompt endpoints remain for data continuity and regression coverage, but they are not the primary product path.
 
 ## Architecture
 
 - `apps/web`: Next.js 16, React 19, TypeScript, Tailwind CSS, Base UI, and lucide-react.
-- `apps/api`: FastAPI, SQLAlchemy, Pydantic, pgvector, LiteLLM/DSPy-ready dependencies, and Uvicorn.
-- `packages/shared`: shared TypeScript types and package boundary for future cross-app contracts.
+- `apps/api`: FastAPI, SQLAlchemy, Pydantic, pgvector, OpenAI SDK, and Uvicorn.
+- `packages/shared`: shared TypeScript package boundary.
 - `infra/docker-compose.yml`: local Postgres with pgvector.
-- `execution-reports/`: phase logs, status notes, and verification history.
+- `execution-reports/`: phase reports, status notes, and verification history.
 
-The frontend reads the API URL from `NEXT_PUBLIC_API_BASE_URL`. The API reads CORS origins from `ALLOWED_ORIGINS`.
+The frontend reads `NEXT_PUBLIC_API_BASE_URL`. The API reads `DATABASE_URL`, `LLM_PROVIDER`, `OPENAI_API_KEY`, `DEFAULT_MODEL`, and `ALLOWED_ORIGINS`.
 
 ## Local Setup
 
@@ -56,6 +61,8 @@ Copy-Item apps/api/.env.example apps/api/.env
 Copy-Item apps/web/.env.example apps/web/.env.local
 ```
 
+Set `OPENAI_API_KEY` in ignored local env files or in the production secret store. Do not commit real API keys.
+
 Start the API:
 
 ```powershell
@@ -72,48 +79,44 @@ pnpm.cmd run dev:web
 
 Root and API:
 
-- `APP_ENV`: `development` locally, `production` on Vercel.
+- `APP_ENV`: `development` locally, `production` for production.
 - `DATABASE_URL`: Postgres connection string.
-- `LLM_PROVIDER`: `ollama` for local evaluation, or a hosted provider for production.
-- `OLLAMA_BASE_URL`: local Ollama endpoint for development scoring.
-- `DEFAULT_MODEL`: default scoring/model identifier.
-- `ALLOWED_ORIGINS`: comma-separated frontend origins. Locally this should stay on port `3000`.
+- `LLM_PROVIDER`: defaults to `openai`.
+- `OPENAI_API_KEY`: server-only OpenAI API key.
+- `DEFAULT_MODEL`: defaults to `gpt-5.5`.
+- `ALLOWED_ORIGINS`: comma-separated frontend origins.
+- `OLLAMA_BASE_URL`: legacy local fallback setting, not the default product path.
 
 Web:
 
 - `NEXT_PUBLIC_API_BASE_URL`: API base URL. Locally this should stay on port `8000`.
 
-Production secrets should live in Vercel or the managed provider dashboard, never in committed files.
-
 ## Main Workflows
 
-- Start a session with display name, primary AI platform, and rules acceptance.
-- Enter a raw request and choose Refine or Quick mode.
-- Optionally choose a guided track: Fix, Build, Learn, Write, Compare, or Research. Tracks only tune normal preferences and add a session metadata hint; users can still edit all settings.
-- Confirm or correct the detected domain when prompted.
-- Answer, skip, or revise clarifying questions.
-- Review the recommended platform-aware prompt first, with alternatives secondary.
-- Expand evaluation details only when needed: score breakdowns, platform fit, modification audit trails, skipped-question assumptions, matched rules, trait alignment, optimization paths, recommended actions, and scorer metadata.
-- Save prompts to the library, export session data, or delete session-scoped data.
-- Import previous AI chats, review redacted previews, reprocess imports, and refresh the prompting profile.
-- Ask profile questions and correct or hide derived profile observations.
+- Import a prompt session from Markdown, JSON, plain text, or pasted transcript.
+- Normalize and redact obvious secrets before previews.
+- Generate a prompt intelligence report through `/intelligence/analyze`.
+- Store reports in `prompt_intelligence_reports` with provider/model/status metadata.
+- Ask the profile questions such as “What do I usually forget to include?” or “How should I prompt Codex better?”
+- Correct or hide derived profile observations.
+- Export or delete derived profile data.
 
 ## API Surface
 
-Core endpoints:
+Prompt intelligence:
 
-- `GET /health`
-- `POST /sessions`
-- `GET /sessions/{session_id}`
-- `POST /sessions/{session_id}/end`
-- `GET /sessions/{session_id}/audit-logs`
-- `GET /sessions/{session_id}/export`
-- `DELETE /sessions/{session_id}/data`
-- `POST /sessions/{session_id}/run-pipeline`
-- `POST /sessions/{session_id}/domain-confirmation`
-- `POST /sessions/{session_id}/run-prompt`
-- `POST /prompts/{prompt_id}/save`
-- `GET /saved-prompts`
+- `POST /intelligence/analyze`
+- `GET /intelligence/reports`
+- `GET /intelligence/reports/latest`
+- `GET /intelligence/reports/{report_id}`
+
+Imports and profile:
+
+- `POST /imports`
+- `GET /imports`
+- `GET /imports/{import_id}`
+- `POST /imports/{import_id}/reprocess`
+- `DELETE /imports/{import_id}`
 - `GET /profile`
 - `GET /profile/insights`
 - `POST /profile/questions`
@@ -122,17 +125,20 @@ Core endpoints:
 - `DELETE /profile/data`
 - `PATCH /profile/observations/{observation_id}`
 - `DELETE /profile/observations/{observation_id}`
-- `POST /imports`
-- `GET /imports`
-- `GET /imports/{import_id}`
-- `POST /imports/{import_id}/reprocess`
-- `DELETE /imports/{import_id}`
+
+Operational:
+
+- `GET /health`
+
+Legacy session endpoints are still present for historical data and regression checks.
 
 ## Data and Privacy
 
-The local MVP stores sessions, prompts, scores, audit events, imports, profile traits, and derived observations in Postgres. Session exports are available as Markdown or JSON. Session deletion removes session-scoped prompts, scores, revisions, saved prompts, embeddings, and audit events, then records a non-sensitive deletion completion event. Profile reset clears derived profile data while preserving source sessions and imports.
+PromptPilot stores imports, normalized messages, derived traits, profile observations, prompt intelligence reports, and audit events in Postgres.
 
-Imported chat content is normalized and redacted for obvious secrets such as API keys, bearer tokens, emails, and phone numbers before preview.
+Imported content is redacted for obvious secrets such as OpenAI-style keys, bearer tokens, emails, phone numbers, and password-like fields before preview. Redaction is best-effort and does not replace careful secret handling.
+
+Real OpenAI API keys belong only in ignored local env files or managed production secrets. If a key is ever pasted into chat, rotate it before using it in production.
 
 ## Verification
 
@@ -140,27 +146,26 @@ Run the core checks before Phase 16 deployment work:
 
 ```powershell
 uv --directory apps/api run python -m compileall app
+uv --directory apps/api run python ../../evals/promptfoo/phase14_regression.py
 pnpm.cmd --dir apps/web lint
 pnpm.cmd --dir apps/web build
 ```
 
-For a local production-build smoke check, stop the dev server first and reuse the same frontend port:
+## Phase 16 Path
 
-```powershell
-pnpm.cmd --dir apps/web start
-```
+Phase 16 should deploy the final FastAPI API and final Next.js web app with managed production environment variables.
 
-## Deployment Path
+Production API requirements:
 
-Phase 16 deploys the final FastAPI API and final Next.js web app directly to Vercel from this monorepo. Use separate Vercel projects for `apps/api` and `apps/web` unless a single Vercel service setup is explicitly selected later.
+- `APP_ENV=production`
+- Managed `DATABASE_URL`
+- `LLM_PROVIDER=openai`
+- `OPENAI_API_KEY`
+- `DEFAULT_MODEL=gpt-5.5`
+- Production web origin in `ALLOWED_ORIGINS`
 
-Deployment is production-first:
+Production web requirements:
 
-- API project root: `apps/api`
-- Web project root: `apps/web`
-- API deploy command: `vercel deploy --prod`
-- Web deploy command: `vercel deploy --prod`
-- Web production env: `NEXT_PUBLIC_API_BASE_URL`
-- API production env: `APP_ENV=production`, `DATABASE_URL`, `LLM_PROVIDER`, `DEFAULT_MODEL`, provider API keys, and the final production web origin in `ALLOWED_ORIGINS`
+- `NEXT_PUBLIC_API_BASE_URL`
 
-Do not rely on local Docker, local Ollama, localhost URLs, or preview ports for public traffic.
+Do not rely on local Docker, localhost URLs, local Ollama, or unrotated exposed keys for public traffic.

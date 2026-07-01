@@ -142,8 +142,24 @@ export type PromptVariant = {
     impact: string;
     priority: string;
   }[];
+  coaching_observations: CoachingObservation[];
   scorer_metadata: Record<string, unknown>;
   created_at: string;
+};
+
+export type CoachingObservation = {
+  id: string;
+  session_id: string;
+  prompt_variant_id: string | null;
+  habit_id: string;
+  habit_label: string;
+  evidence_excerpt: string;
+  source_session_ids: string[];
+  confidence: number;
+  applied_fix: string;
+  user_feedback: "confirmed" | "rejected" | "unset";
+  created_at: string;
+  updated_at: string;
 };
 
 export type PipelineResponse = {
@@ -396,6 +412,64 @@ export type ConversationImport = {
   updated_at: string;
 };
 
+export type PromptIntelligenceAnalyzeRequest = {
+  import_id?: string | null;
+  platform?: ImportPlatform;
+  source_type?: ImportSourceType;
+  title?: string | null;
+  raw_text?: string | null;
+};
+
+export type PromptIntelligenceScore = {
+  key: string;
+  label: string;
+  score: number;
+  verdict: string;
+  explanation: string;
+  improvement: string;
+  evidence: string[];
+};
+
+export type PromptBehaviorPattern = {
+  title: string;
+  detail: string;
+  confidence: number;
+  evidence: string[];
+};
+
+export type PromptIntelligenceRecommendation = {
+  title: string;
+  detail: string;
+  priority: "high" | "medium" | "low";
+  example_rewrite?: string | null;
+};
+
+export type PromptIntelligenceComparison = {
+  label: string;
+  detail: string;
+};
+
+export type PromptIntelligenceReport = {
+  id: string;
+  profile_id: string;
+  import_id: string | null;
+  provider: string;
+  model: string;
+  status: string;
+  headline: string;
+  summary: string;
+  style_scores: PromptIntelligenceScore[];
+  behavior_patterns: PromptBehaviorPattern[];
+  recommendations: PromptIntelligenceRecommendation[];
+  next_prompt_recipe: string[];
+  comparisons: PromptIntelligenceComparison[];
+  evidence: ProfileEvidenceReference[];
+  report_metadata: Record<string, unknown>;
+  source_import?: ConversationImport | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type DomainConfirmationResponse = {
   session_id: string;
   classification: ClassificationResponse;
@@ -603,6 +677,20 @@ export async function runPrompt(sessionId: string, promptId: string) {
   });
 }
 
+export async function updateCoachingObservationFeedback(
+  sessionId: string,
+  observationId: string,
+  feedback: "confirmed" | "rejected",
+) {
+  return request<CoachingObservation>(
+    `/sessions/${sessionId}/coaching-observations/${observationId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ feedback }),
+    },
+  );
+}
+
 export async function savePrompt(promptId: string, label?: string) {
   return request<SavedPrompt>(`/prompts/${promptId}/save`, {
     method: "POST",
@@ -687,4 +775,21 @@ export async function deleteImport(importId: string) {
   return request<{ id: string; deleted: boolean }>(`/imports/${importId}`, {
     method: "DELETE",
   });
+}
+
+export async function analyzePromptIntelligence(
+  payload: PromptIntelligenceAnalyzeRequest,
+) {
+  return request<PromptIntelligenceReport>("/intelligence/analyze", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getPromptIntelligenceReports() {
+  return request<PromptIntelligenceReport[]>("/intelligence/reports");
+}
+
+export async function getLatestPromptIntelligenceReport() {
+  return request<PromptIntelligenceReport | null>("/intelligence/reports/latest");
 }

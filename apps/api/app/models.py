@@ -74,6 +74,11 @@ class UserPromptProfile(Base):
         order_by="PromptingTraitSignal.created_at",
     )
     imports: Mapped[list["ConversationImport"]] = relationship(back_populates="profile")
+    intelligence_reports: Mapped[list["PromptIntelligenceReport"]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        order_by="PromptIntelligenceReport.created_at",
+    )
     platform_preferences: Mapped[list["PlatformPreference"]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
@@ -259,6 +264,11 @@ class ProblemSession(Base):
         cascade="all, delete-orphan",
         order_by="PromptVariant.created_at",
     )
+    coaching_observations: Mapped[list["CoachingObservation"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="CoachingObservation.created_at",
+    )
     saved_prompts: Mapped[list["SavedPrompt"]] = relationship(back_populates="session")
 
     @property
@@ -397,6 +407,45 @@ class PromptVariant(Base):
     def scorer_metadata(self) -> dict[str, Any]:
         return dict((self.score_metadata or {}).get("scorer_metadata") or {})
 
+    @property
+    def coaching_observations(self) -> list[dict[str, Any]]:
+        return list((self.score_metadata or {}).get("coaching_observations") or [])
+
+
+class CoachingObservation(Base):
+    __tablename__ = "coaching_observations"
+    __table_args__ = (
+        Index(
+            "ix_coaching_observations_session_habit",
+            "session_id",
+            "habit_id",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("problem_sessions.id"), index=True)
+    prompt_variant_id: Mapped[str | None] = mapped_column(
+        ForeignKey("prompt_variants.id"),
+        nullable=True,
+        index=True,
+    )
+    habit_id: Mapped[str] = mapped_column(String(120), index=True)
+    habit_label: Mapped[str] = mapped_column(String(200))
+    evidence_excerpt: Mapped[str] = mapped_column(Text)
+    source_session_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    confidence: Mapped[float] = mapped_column(Float)
+    applied_fix: Mapped[str] = mapped_column(Text)
+    user_feedback: Mapped[str] = mapped_column(String(40), default="unset")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    session: Mapped[ProblemSession] = relationship(back_populates="coaching_observations")
+    prompt_variant: Mapped[PromptVariant | None] = relationship()
+
 
 class PromptScore(Base):
     __tablename__ = "prompt_scores"
@@ -473,6 +522,51 @@ class ConversationImport(Base):
         back_populates="conversation_import",
         cascade="all, delete-orphan",
         order_by="ImportedConversation.created_at",
+    )
+    intelligence_reports: Mapped[list["PromptIntelligenceReport"]] = relationship(
+        back_populates="conversation_import",
+    )
+
+
+class PromptIntelligenceReport(Base):
+    __tablename__ = "prompt_intelligence_reports"
+    __table_args__ = (
+        Index(
+            "ix_prompt_intelligence_reports_profile_created",
+            "profile_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("user_prompt_profiles.id"), index=True)
+    import_id: Mapped[str | None] = mapped_column(
+        ForeignKey("conversation_imports.id"),
+        nullable=True,
+        index=True,
+    )
+    provider: Mapped[str] = mapped_column(String(80), default="deterministic")
+    model: Mapped[str] = mapped_column(String(160), default="local-rules-v1")
+    status: Mapped[str] = mapped_column(String(60), default="ready")
+    headline: Mapped[str] = mapped_column(String(240))
+    summary: Mapped[str] = mapped_column(Text)
+    style_scores: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    behavior_patterns: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    recommendations: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    next_prompt_recipe: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    comparisons: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    report_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    profile: Mapped[UserPromptProfile] = relationship(back_populates="intelligence_reports")
+    conversation_import: Mapped[ConversationImport | None] = relationship(
+        back_populates="intelligence_reports",
     )
 
 

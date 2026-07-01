@@ -37,20 +37,20 @@ export function SettingsView() {
           <dl className="space-y-2 text-sm">
             <SettingRow label="Service" value={health?.service ?? "promptpilot-api"} />
             <SettingRow label="Database" value={health?.database.database ?? "prompt_engine"} />
-            <SettingRow label="Provider" value={health?.model_provider ?? "ollama"} />
-            <SettingRow label="Model" value={health?.default_model ?? "ollama/llama3.1:8b"} />
+            <SettingRow label="Provider" value={health?.model_provider ?? "openai"} />
+            <SettingRow label="Model" value={health?.default_model ?? "gpt-5.5"} />
           </dl>
         </div>
 
         <div className="rounded-md border border-[#d9ded2] bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold">Default Tuner Values</h2>
+          <h2 className="mb-3 text-sm font-semibold">Intelligence Defaults</h2>
           <dl className="space-y-2 text-sm">
-            <SettingRow label="Length" value="medium" />
-            <SettingRow label="Skill" value="practical" />
-            <SettingRow label="Tone" value="friendly" />
-            <SettingRow label="Format" value="guide" />
-            <SettingRow label="Risk" value="normal" />
-            <SettingRow label="Sources" value="none" />
+            <SettingRow label="Primary screen" value="import and judge" />
+            <SettingRow label="Default provider" value="openai" />
+            <SettingRow label="Fallback" value="local scoring" />
+            <SettingRow label="Evidence" value="import excerpts" />
+            <SettingRow label="Output" value="profile report" />
+            <SettingRow label="Phase" value="15.5 ready for 16" />
           </dl>
         </div>
       </section>

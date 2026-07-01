@@ -1,5 +1,10 @@
 from app.models import ProblemSession, PromptVariant
 from app.schemas import KnowledgeRetrievalContext, PromptSettings
+from app.services.domain_capabilities import (
+    effective_interaction_mode,
+    effective_source_strictness,
+    platform_behavior,
+)
 from app.services.knowledge_support import knowledge_context_to_prompt_lines
 
 
@@ -16,7 +21,14 @@ PROMPT_STRATEGIES = [
 ]
 
 
-def _settings_lines(settings: PromptSettings) -> list[str]:
+def _settings_lines(settings: PromptSettings, session: ProblemSession) -> list[str]:
+    source_strictness = effective_source_strictness(
+        settings,
+        _domain_for_session(session),
+        raw_input=session.raw_input,
+        intent=_intent_for_session(session),
+    )
+    interaction_mode = effective_interaction_mode(settings, _domain_for_session(session))
     return [
         f"- Target platform: {settings.target_platform}",
         f"- Detail level: {settings.detail_level}",
@@ -26,8 +38,8 @@ def _settings_lines(settings: PromptSettings) -> list[str]:
         f"- Formality: {settings.formality}",
         f"- Temperature: {settings.temperature}",
         f"- Reasoning style: {settings.reasoning_style}",
-        f"- Source strictness: {settings.source_strictness}",
-        f"- Interaction mode: {settings.interaction_mode}",
+        f"- Source strictness: {source_strictness}",
+        f"- Interaction mode: {interaction_mode}",
         f"- Output format: {settings.format}",
         f"- Risk posture: {settings.risk}",
         f"- Source preference: {settings.sources}",
@@ -155,42 +167,6 @@ INTENT_RESPONSE_SHAPES = {
 }
 
 
-PLATFORM_BEHAVIOR = {
-    "codex": (
-        "Optimize for Codex. Emphasize repository context, relevant files, constraints, "
-        "implementation steps, verification commands, and expected code-change behavior."
-    ),
-    "claude": (
-        "Optimize for Claude. Support long-context analysis, careful structure, nuanced tradeoffs, "
-        "and a deliberate answer with clearly labeled assumptions."
-    ),
-    "chatgpt": (
-        "Optimize for ChatGPT. Keep the prompt portable, explicit, general-purpose, and easy to reuse."
-    ),
-    "gemini": (
-        "Optimize for Gemini. Mention multimodal inputs, broad research context, and source comparison when relevant."
-    ),
-    "cursor": (
-        "Optimize for Cursor. Emphasize files, editor context, incremental code edits, tests, and concise implementation notes."
-    ),
-    "grok": (
-        "Optimize for Grok. Keep the prompt direct, contrastive, current-context aware, and easy to iterate."
-    ),
-    "perplexity": (
-        "Optimize for Perplexity. Emphasize source-backed research, citations, evidence boundaries, and comparison of claims."
-    ),
-    "copilot": (
-        "Optimize for Copilot. Emphasize concise workflow context, document or code context, and practical next actions."
-    ),
-    "generic": (
-        "Optimize for a generic AI assistant. Avoid provider-specific features or assumptions."
-    ),
-    "other": (
-        "Optimize for a generic AI assistant. Avoid provider-specific features or assumptions."
-    ),
-}
-
-
 AGENT_TRACK_LABELS = {
     "fix": "Fix",
     "build": "Build",
@@ -265,8 +241,7 @@ def _domain_label(session: ProblemSession) -> str:
 
 
 def _role_for_session(session: ProblemSession) -> str:
-    classification = session.classification or {}
-    domain = str(session.detected_domain or classification.get("domain") or "general_problem_solving")
+    domain = _domain_for_session(session)
     intent = _intent_for_session(session)
     if intent == "build":
         return BUILD_ROLES.get(domain, f"a practical {domain.replace('_', ' ')} build guide")
@@ -275,6 +250,11 @@ def _role_for_session(session: ProblemSession) -> str:
     if intent == "compare":
         return DECISION_ROLES.get(domain, f"a practical {domain.replace('_', ' ')} decision advisor")
     return DOMAIN_ROLES.get(domain, f"a domain expert in {domain.replace('_', ' ')}")
+
+
+def _domain_for_session(session: ProblemSession) -> str:
+    classification = session.classification or {}
+    return str(session.detected_domain or classification.get("domain") or "general_problem_solving")
 
 
 def _intent_for_session(session: ProblemSession) -> str:
@@ -400,12 +380,18 @@ def _temperature_instruction(session: ProblemSession, settings: PromptSettings) 
     return "Use balanced creativity and avoid making up missing facts."
 
 
-def _source_boundary(settings: PromptSettings) -> str:
-    if settings.source_strictness == "official_only":
+def _source_boundary(settings: PromptSettings, session: ProblemSession) -> str:
+    source_strictness = effective_source_strictness(
+        settings,
+        _domain_for_session(session),
+        raw_input=session.raw_input,
+        intent=_intent_for_session(session),
+    )
+    if source_strictness == "official_only":
         return "Use official sources only when source-backed claims are needed; say when verification is required."
-    if settings.source_strictness == "evidence_first":
+    if source_strictness == "evidence_first":
         return "Lead with evidence, cite or describe support for important claims, and separate inference from fact."
-    if settings.source_strictness == "cite_when_needed":
+    if source_strictness == "cite_when_needed":
         return "Cite sources for claims that are specific, time-sensitive, factual, legal, medical, financial, or technical."
     if settings.sources == "official_docs":
         return "Prefer official sources and say when a claim needs verification."
@@ -430,8 +416,8 @@ def _platform_label(platform: str) -> str:
     return labels.get(platform, platform.replace("_", " ").title())
 
 
-def _platform_behavior(settings: PromptSettings) -> str:
-    return PLATFORM_BEHAVIOR.get(settings.target_platform, PLATFORM_BEHAVIOR["generic"])
+def _platform_behavior(settings: PromptSettings, session: ProblemSession) -> str:
+    return platform_behavior(settings.target_platform, _domain_for_session(session))
 
 
 def _clean_request_context(raw_input: str) -> str:
@@ -455,12 +441,14 @@ def _reasoning_instruction(settings: PromptSettings) -> str:
     }[settings.reasoning_style]
 
 
-def _interaction_instruction(settings: PromptSettings) -> str:
+def _interaction_instruction(settings: PromptSettings, session: ProblemSession) -> str:
+    interaction_mode = effective_interaction_mode(settings, _domain_for_session(session))
     return {
         "one_shot": "Interaction mode: produce the best complete one-shot answer with assumptions clearly stated.",
         "iterative": "Interaction mode: support a short iterative exchange and ask focused follow-ups only when they matter.",
         "agentic": "Interaction mode: act like an agent: plan, execute in safe steps, verify outcomes, and report what changed.",
-    }[settings.interaction_mode]
+        "guide": "Interaction mode: guide the user with a clear plan, practical checkpoints, and result checks they can do themselves.",
+    }[interaction_mode]
 
 
 def _formality_instruction(settings: PromptSettings) -> str:
@@ -530,7 +518,7 @@ def _prompt_for_strategy(
     assumptions = "\n".join(_assumption_lines(session))
     constraints = "\n".join(_constraint_lines(session))
     platform_label = _platform_label(settings.target_platform)
-    platform_behavior = _platform_behavior(settings)
+    platform_behavior = _platform_behavior(settings, session)
     agent_track = _agent_track_label(session)
     agent_track_line = (
         f"Agent track: {agent_track} workflow hint only; user settings and request details still take priority.\n"
@@ -538,7 +526,7 @@ def _prompt_for_strategy(
         else ""
     )
     reasoning_instruction = _reasoning_instruction(settings)
-    interaction_instruction = _interaction_instruction(settings)
+    interaction_instruction = _interaction_instruction(settings, session)
     formality_instruction = _formality_instruction(settings)
     response_shape = _response_shape_for_session(session)
     response_structure = "\n".join(str(item) for item in response_shape["structure"])
@@ -586,7 +574,7 @@ def _prompt_for_strategy(
                 f"{assumptions}\n\n"
                 "Follow-up behavior:\n"
                 f"{questions}\n\n"
-                f"Safety or source boundaries: {_source_boundary(settings)}\n\n"
+                f"Safety or source boundaries: {_source_boundary(settings, session)}\n\n"
                 "Produce the final answer with this structure:\n"
                 f"{response_structure}\n\n"
                 f"User preferences:\n{settings_block}\n\n"
@@ -702,7 +690,7 @@ def generate_prompt_variants(
     knowledge_context: KnowledgeRetrievalContext | None = None,
 ) -> list[PromptVariant]:
     context = "\n".join(_context_lines(session, knowledge_context))
-    settings_block = "\n".join(_settings_lines(settings))
+    settings_block = "\n".join(_settings_lines(settings, session))
     selected_strategies = strategies or choose_prompt_strategies(
         session,
         settings,

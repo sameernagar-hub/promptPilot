@@ -44,21 +44,18 @@ export function AppShell({
             </Link>
             <div className="min-w-0">
               <h1 className="truncate text-lg font-semibold">{title}</h1>
-              {status ? <p className="truncate text-xs text-[#65736f]">{status}</p> : null}
+            {status ? <p className="truncate text-xs text-[#65736f]">{status}</p> : null}
             </div>
           </div>
           <nav className="flex flex-wrap items-center justify-end gap-2 text-sm">
             <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/">
-              Workspace
+              Judge
             </Link>
             <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/profile">
               Profile
             </Link>
             <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/profile/imports">
               Imports
-            </Link>
-            <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/library">
-              Library
             </Link>
             <Link className="rounded-md px-2 py-1 hover:bg-[#edf1e8]" href="/settings">
               Settings
@@ -73,7 +70,7 @@ export function AppShell({
       <footer className="border-t border-[#d9ded2] bg-[#fbfcf7]">
         <div className={cn("mx-auto flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs text-[#65736f]", width)}>
           <span>PromptPilot</span>
-          <span>Local-first prompt refinement, scoring, and profile controls.</span>
+          <span>Prompt behavior analysis, evidence-backed scoring, and profile controls.</span>
         </div>
       </footer>
     </main>

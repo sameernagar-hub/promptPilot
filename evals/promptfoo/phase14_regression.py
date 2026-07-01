@@ -36,9 +36,14 @@ def _request(client: TestClient, method: str, path: str, **kwargs):
     return response.json()
 
 
-def _create_session(client: TestClient, raw_input: str, platform: str = "codex") -> dict:
+def _create_session(
+    client: TestClient,
+    raw_input: str,
+    platform: str = "codex",
+    settings_overrides: dict | None = None,
+) -> dict:
     suffix = uuid4().hex[:8]
-    settings = {**BASE_SETTINGS, "target_platform": platform}
+    settings = {**BASE_SETTINGS, "target_platform": platform, **(settings_overrides or {})}
     return _request(
         client,
         "POST",
@@ -60,13 +65,15 @@ def _run_pipeline(
     platform: str = "codex",
     mode: str = "quick",
     answers: list[dict] | None = None,
+    settings_overrides: dict | None = None,
 ) -> dict:
+    settings = {**BASE_SETTINGS, "target_platform": platform, **(settings_overrides or {})}
     return _request(
         client,
         "POST",
         f"/sessions/{session_id}/run-pipeline",
         json={
-            "settings": {**BASE_SETTINGS, "target_platform": platform},
+            "settings": settings,
             "mode": mode,
             "answers": answers or [],
         },
@@ -166,6 +173,126 @@ def test_build_intent_uses_creation_shape(client: TestClient) -> None:
     _request(client, "DELETE", f"/sessions/{session['id']}/data")
 
 
+def test_codex_art_prompt_uses_non_code_platform_shape(client: TestClient) -> None:
+    settings = {
+        "source_strictness": "evidence_first",
+        "interaction_mode": "agentic",
+    }
+    session = _create_session(
+        client,
+        (
+            "Help me design a colourful chart of land animals using paper and marker pens, "
+            "$50 budget, no experience."
+        ),
+        "codex",
+        settings,
+    )
+    result = _run_pipeline(
+        client,
+        session["id"],
+        "codex",
+        "quick",
+        settings_overrides=settings,
+    )
+    prompt = _recommended_prompt(result)
+    prompt_text = prompt["prompt_text"].lower()
+    assert "repository" not in prompt_text
+    assert "relevant files" not in prompt_text
+    assert "code-change" not in prompt_text
+    assert "verification commands" not in prompt_text
+    assert "source strictness: evidence_first" not in prompt_text
+    assert "interaction mode: agentic" not in prompt_text
+    assert "execute in safe steps" not in prompt_text
+    assert "interaction mode: guide" in prompt_text
+    assert prompt["coaching_observations"], "Expected coaching notes for missing prompt habits"
+    _request(client, "DELETE", f"/sessions/{session['id']}/data")
+
+
+def test_codex_code_prompt_keeps_code_platform_shape(client: TestClient) -> None:
+    session = _create_session(
+        client,
+        "Help me fix a bug in my Python script in this repo and verify the change.",
+        "codex",
+    )
+    result = _run_pipeline(client, session["id"], "codex", "quick")
+    prompt_text = _recommended_prompt(result)["prompt_text"].lower()
+    assert "repository context" in prompt_text
+    assert "relevant files" in prompt_text
+    assert "verification commands" in prompt_text
+    _request(client, "DELETE", f"/sessions/{session['id']}/data")
+
+
+def test_non_code_platform_gating_is_domain_based(client: TestClient) -> None:
+    settings = {
+        "source_strictness": "evidence_first",
+        "interaction_mode": "agentic",
+    }
+    session = _create_session(
+        client,
+        "Help me plan a handmade birthday card with paper, markers, and a $20 budget.",
+        "claude",
+        settings,
+    )
+    result = _run_pipeline(
+        client,
+        session["id"],
+        "claude",
+        "quick",
+        settings_overrides=settings,
+    )
+    prompt_text = _recommended_prompt(result)["prompt_text"].lower()
+    assert "source strictness: evidence_first" not in prompt_text
+    assert "interaction mode: agentic" not in prompt_text
+    assert "interaction mode: guide" in prompt_text
+    _request(client, "DELETE", f"/sessions/{session['id']}/data")
+
+
+def test_coaching_feedback_persists(client: TestClient) -> None:
+    session = _create_session(
+        client,
+        "Build a Python script that reads a CSV file.",
+        "codex",
+    )
+    result = _run_pipeline(client, session["id"], "codex", "quick")
+    prompt = _recommended_prompt(result)
+    observations = prompt["coaching_observations"]
+    assert any(item["habit_id"] == "missing_success_criteria" for item in observations)
+    target = next(item for item in observations if item["habit_id"] == "missing_success_criteria")
+    updated = _request(
+        client,
+        "PATCH",
+        f"/sessions/{session['id']}/coaching-observations/{target['id']}",
+        json={"feedback": "confirmed"},
+    )
+    assert updated["user_feedback"] == "confirmed"
+    restored = _request(client, "GET", f"/sessions/{session['id']}")
+    restored_prompt = _recommended_prompt(
+        {
+            "recommended_prompt_id": restored["recommended_prompt_id"],
+            "prompts": restored["prompts"],
+        }
+    )
+    restored_observation = next(
+        item
+        for item in restored_prompt["coaching_observations"]
+        if item["id"] == target["id"]
+    )
+    assert restored_observation["user_feedback"] == "confirmed"
+    _request(client, "DELETE", f"/sessions/{session['id']}/data")
+
+
+def test_coaching_success_criteria_false_positive_guard(client: TestClient) -> None:
+    session = _create_session(
+        client,
+        "Build a Python script. Success criteria: it reads a CSV and prints a clear summary.",
+        "codex",
+    )
+    result = _run_pipeline(client, session["id"], "codex", "quick")
+    observations = _recommended_prompt(result)["coaching_observations"]
+    assert not any(item["habit_id"] == "missing_success_criteria" for item in observations)
+    _request(client, "DELETE", f"/sessions/{session['id']}/data")
+
+
 def test_export_audit_and_delete_completion(client: TestClient) -> None:
     session = _create_session(client, "Draft a support reply for a billing question.", "chatgpt")
     result = _run_pipeline(client, session["id"], "chatgpt", "quick")
@@ -230,6 +357,11 @@ def main() -> None:
         test_skipped_question_assumption_audit(client)
         test_platform_fit_granularity_differs(client)
         test_build_intent_uses_creation_shape(client)
+        test_codex_art_prompt_uses_non_code_platform_shape(client)
+        test_codex_code_prompt_keeps_code_platform_shape(client)
+        test_non_code_platform_gating_is_domain_based(client)
+        test_coaching_feedback_persists(client)
+        test_coaching_success_criteria_false_positive_guard(client)
         test_export_audit_and_delete_completion(client)
         test_import_redaction_and_delete(client)
         test_profile_export_and_reset(client)

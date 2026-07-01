@@ -8,6 +8,7 @@ from app.models import (
     AuditLog,
     Base,
     ClarifyingQuestion,
+    CoachingObservation,
     DomainConfirmation,
     PlatformPreference,
     ProblemSession,
@@ -536,6 +537,104 @@ class DatabaseStore:
             )
             return list(database.scalars(statement))
 
+    def replace_session_coaching_observations(
+        self,
+        session_id: str,
+        observations: list[CoachingObservation],
+    ) -> list[CoachingObservation]:
+        with SessionLocal() as database:
+            database.execute(
+                delete(CoachingObservation).where(
+                    CoachingObservation.session_id == session_id
+                )
+            )
+            database.flush()
+            for observation in observations:
+                observation.session_id = session_id
+                database.add(observation)
+            database.commit()
+            for observation in observations:
+                database.refresh(observation)
+            return observations
+
+    def list_session_coaching_observations(
+        self,
+        session_id: str,
+    ) -> list[CoachingObservation]:
+        with SessionLocal() as database:
+            statement = (
+                select(CoachingObservation)
+                .where(CoachingObservation.session_id == session_id)
+                .order_by(CoachingObservation.created_at)
+            )
+            return list(database.scalars(statement))
+
+    def recent_coaching_session_ids(
+        self,
+        habit_id: str,
+        exclude_session_id: str,
+        limit: int = 2,
+    ) -> list[str]:
+        with SessionLocal() as database:
+            statement = (
+                select(CoachingObservation.session_id)
+                .where(
+                    CoachingObservation.habit_id == habit_id,
+                    CoachingObservation.session_id != exclude_session_id,
+                    CoachingObservation.user_feedback != "rejected",
+                )
+                .order_by(CoachingObservation.created_at.desc())
+                .limit(limit)
+            )
+            seen: list[str] = []
+            for session_id in database.scalars(statement):
+                if session_id not in seen:
+                    seen.append(session_id)
+            return seen
+
+    def update_coaching_feedback(
+        self,
+        observation_id: str,
+        session_id: str,
+        feedback: str,
+    ) -> CoachingObservation | None:
+        with SessionLocal() as database:
+            observation = database.scalar(
+                select(CoachingObservation).where(
+                    CoachingObservation.id == observation_id,
+                    CoachingObservation.session_id == session_id,
+                )
+            )
+            if observation is None:
+                return None
+            observation.user_feedback = feedback
+            observation.updated_at = utc_now()
+            if observation.prompt_variant_id:
+                prompt = database.scalar(
+                    select(PromptVariant).where(
+                        PromptVariant.id == observation.prompt_variant_id
+                    )
+                )
+                if prompt is not None:
+                    metadata = dict(prompt.score_metadata or {})
+                    observations = []
+                    for item in metadata.get("coaching_observations") or []:
+                        if item.get("id") == observation.id:
+                            observations.append(
+                                {
+                                    **item,
+                                    "user_feedback": feedback,
+                                    "updated_at": observation.updated_at.isoformat(),
+                                }
+                            )
+                        else:
+                            observations.append(item)
+                    metadata["coaching_observations"] = observations
+                    prompt.score_metadata = metadata
+            database.commit()
+            database.refresh(observation)
+            return observation
+
     def delete_session_data(self, session_id: str) -> dict[str, int]:
         with SessionLocal() as database:
             db_session = database.scalar(
@@ -590,6 +689,13 @@ class DatabaseStore:
             counts["trait_observations"] = _deleted_count(
                 database.execute(
                     delete(TraitObservation).where(TraitObservation.session_id == session_id)
+                )
+            )
+            counts["coaching_observations"] = _deleted_count(
+                database.execute(
+                    delete(CoachingObservation).where(
+                        CoachingObservation.session_id == session_id
+                    )
                 )
             )
             counts["clarifying_questions"] = _deleted_count(

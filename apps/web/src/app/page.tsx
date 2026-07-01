@@ -1,5 +1,5 @@
-import { PromptWorkspace } from "@/components/prompt-workspace";
+import { PromptIntelligenceWorkspace } from "@/components/prompt-intelligence-workspace";
 
 export default function Home() {
-  return <PromptWorkspace />;
+  return <PromptIntelligenceWorkspace />;
 }

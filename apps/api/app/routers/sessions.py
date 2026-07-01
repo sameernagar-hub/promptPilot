@@ -8,6 +8,8 @@ from app.schemas import (
     AuditLogResponse,
     ClarifyingQuestionsResponse,
     ClassificationResponse,
+    CoachingFeedbackRequest,
+    CoachingObservationResponse,
     CreateSessionRequest,
     DeleteSessionDataResponse,
     DomainConfirmationRequest,
@@ -27,6 +29,7 @@ from app.schemas import (
     SubmitAnswersRequest,
 )
 from app.services.classifier import apply_domain_confirmation, classify_problem
+from app.services.coaching_habits import attach_coaching_observations
 from app.services.llm_client import run_prompt
 from app.services.prompt_engine import run_prompt_engine
 from app.services.prompt_generator import generate_prompt_variants
@@ -300,6 +303,7 @@ def score_prompts(session_id: str) -> ScorePromptsResponse:
         prompts=prompts,
         settings=_settings_from_session(session),
     )
+    scored = attach_coaching_observations(session, scored)
     for prompt in scored:
         store.upsert_prompt(prompt)
 
@@ -368,6 +372,36 @@ def run_session_pipeline(
             },
         )
     return response
+
+
+@router.patch(
+    "/{session_id}/coaching-observations/{observation_id}",
+    response_model=CoachingObservationResponse,
+)
+def update_coaching_observation_feedback(
+    session_id: str,
+    observation_id: str,
+    payload: CoachingFeedbackRequest,
+) -> CoachingObservationResponse:
+    _get_session_or_404(session_id)
+    observation = store.update_coaching_feedback(
+        observation_id=observation_id,
+        session_id=session_id,
+        feedback=payload.feedback,
+    )
+    if observation is None:
+        raise HTTPException(status_code=404, detail="Coaching observation not found")
+    store.record_audit_log(
+        event_type="coaching_feedback_recorded",
+        entity_type="coaching_observation",
+        entity_id=observation.id,
+        session_id=session_id,
+        metadata={
+            "habit_id": observation.habit_id,
+            "feedback": observation.user_feedback,
+        },
+    )
+    return CoachingObservationResponse.model_validate(observation)
 
 
 @router.post("/{session_id}/run-prompt", response_model=RunPromptResponse)

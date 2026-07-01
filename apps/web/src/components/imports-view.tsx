@@ -174,7 +174,7 @@ export function ImportsView() {
 
   return (
     <AppShell
-      title="Chat Imports"
+      title="Prompt Imports"
       status={status}
       icon={<Database className="size-4" />}
       actions={
@@ -194,7 +194,7 @@ export function ImportsView() {
         <section className="rounded-md border border-[#d9ded2] bg-white p-4 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <UploadCloud className="size-4 text-[#1e4d45]" />
-            <h2 className="text-sm font-semibold">New Import</h2>
+            <h2 className="text-sm font-semibold">New Prompt Session</h2>
           </div>
           <form className="space-y-3" onSubmit={submitImport}>
             <div className="grid gap-3 sm:grid-cols-2">

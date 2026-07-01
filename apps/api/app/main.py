@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_database
-from app.routers import health, imports, profile, prompts, sessions
+from app.routers import health, imports, intelligence, profile, prompts, sessions
 from app.config import get_settings
 
 
@@ -32,6 +32,7 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(imports.router)
+app.include_router(intelligence.router)
 app.include_router(profile.router)
 app.include_router(sessions.router)
 app.include_router(prompts.router)

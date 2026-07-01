@@ -6,6 +6,7 @@ from app.models import (
     ConversationImport,
     ImportedConversation,
     ImportedMessage,
+    PromptIntelligenceReport,
     PromptingTraitSignal,
     TraitObservation,
     utc_now,
@@ -109,6 +110,11 @@ def delete_conversation_import(import_id: str) -> ConversationImportDeleteRespon
                     TraitObservation.imported_message_id.in_(message_ids)
                 )
             )
+        database.execute(
+            delete(PromptIntelligenceReport).where(
+                PromptIntelligenceReport.import_id == import_id
+            )
+        )
 
         database.delete(row)
         database.commit()

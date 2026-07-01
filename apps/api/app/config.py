@@ -33,10 +33,11 @@ class Settings:
         "DATABASE_URL",
         "postgresql://prompt_engine:prompt_engine@localhost:5432/prompt_engine",
     )
-    llm_provider: str = getenv("LLM_PROVIDER", "ollama")
+    llm_provider: str = getenv("LLM_PROVIDER", "openai")
+    openai_api_key: str | None = getenv("OPENAI_API_KEY")
     ollama_base_url: str = getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     ollama_scorer_timeout_seconds: float = float(getenv("OLLAMA_SCORER_TIMEOUT_SECONDS", "12"))
-    default_model: str = getenv("DEFAULT_MODEL", "ollama/llama3.1:8b")
+    default_model: str = getenv("DEFAULT_MODEL", "gpt-5.5")
     allowed_origins: tuple[str, ...] = _csv_env(
         getenv(
             "ALLOWED_ORIGINS",
@@ -61,6 +62,8 @@ class Settings:
             failures.append("DATABASE_URL must use a managed production database")
         if self.llm_provider == "ollama":
             failures.append("LLM_PROVIDER must use a hosted provider in production")
+        if self.llm_provider == "openai" and not self.openai_api_key:
+            failures.append("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
         if not self.allowed_origins:
             failures.append("ALLOWED_ORIGINS must include the production web origin")
         if any(_is_local_reference(origin) for origin in self.allowed_origins):

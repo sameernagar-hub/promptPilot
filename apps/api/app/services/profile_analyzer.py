@@ -12,6 +12,7 @@ from app.models import (
     ImportedConversation,
     ImportedMessage,
     PlatformPreference,
+    PromptIntelligenceReport,
     ProfileObservationOverride,
     ProblemSession,
     PromptingTrait,
@@ -343,6 +344,13 @@ def reset_prompt_profile_data() -> dict[str, int]:
             "platform_preferences": _deleted_count(
                 database.execute(
                     delete(PlatformPreference).where(PlatformPreference.profile_id == profile.id)
+                )
+            ),
+            "prompt_intelligence_reports": _deleted_count(
+                database.execute(
+                    delete(PromptIntelligenceReport).where(
+                        PromptIntelligenceReport.profile_id == profile.id
+                    )
                 )
             ),
         }

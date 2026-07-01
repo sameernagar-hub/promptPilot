@@ -6,6 +6,11 @@ from urllib.request import Request, urlopen
 from app.config import get_settings
 from app.models import PromptVariant
 from app.schemas import ClassificationResponse, PromptSettings
+from app.services.domain_capabilities import (
+    platform_behavior_summary,
+    platform_fit_terms,
+    uses_code_platform_scaffolding,
+)
 
 
 SCORING_KEYS = [
@@ -41,32 +46,6 @@ STRATEGY_PRIORITY = {
     "questions_first": 6,
     "beginner_step_by_step": 7,
     "expert_consultant": 8,
-}
-
-PLATFORM_TERMS = {
-    "codex": {"codex", "repository", "repo", "files", "verification", "code-change"},
-    "claude": {"claude", "long-context", "nuanced", "tradeoffs", "assumptions"},
-    "chatgpt": {"chatgpt", "portable", "general-purpose", "reuse"},
-    "gemini": {"gemini", "multimodal", "research", "sources"},
-    "cursor": {"cursor", "editor", "files", "incremental", "tests"},
-    "grok": {"grok", "direct", "current", "concise", "contrast"},
-    "perplexity": {"perplexity", "sources", "research", "citations", "evidence"},
-    "copilot": {"copilot", "microsoft", "document", "workflow", "productivity"},
-    "generic": {"generic", "provider-specific", "assumptions"},
-    "other": {"generic", "provider-specific", "assumptions"},
-}
-
-PLATFORM_BEHAVIOR_SUMMARIES = {
-    "codex": "repo context, file constraints, implementation steps, and verification",
-    "claude": "long-context structure, nuance, and labeled assumptions",
-    "chatgpt": "portable, explicit, reusable instructions",
-    "gemini": "broad research context, source comparison, and multimodal readiness",
-    "cursor": "editor context, incremental edits, and test feedback",
-    "grok": "direct framing, contrast, and concise iteration",
-    "perplexity": "source-forward research, citations, and evidence boundaries",
-    "copilot": "productivity workflow, document context, and concise execution",
-    "generic": "provider-neutral instructions without platform assumptions",
-    "other": "provider-neutral instructions without platform assumptions",
 }
 
 CONTRACT_MARKERS = {
@@ -174,10 +153,12 @@ def score_prompt_variants(
             prompt.score_metadata["recommendation_summary"] = (
                 "Best current fit for the selected platform and available context."
             )
+            domain = str(classification_data.get("domain") or classification_data.get("primary_domain") or "")
             prompt.score_metadata["recommended_actions"] = _recommended_actions(
                 prompt,
                 settings,
                 prompt.score_metadata.get("assumption_notes") or [],
+                domain=domain,
             )
     return scored
 
@@ -201,7 +182,7 @@ def _score_prompt(
     domain = str(classification.get("domain") or classification.get("primary_domain") or "")
     domain_text = domain.replace("_", " ")
 
-    platform_fit = _platform_fit_score(text, settings.target_platform)
+    platform_fit = _platform_fit_score(text, settings.target_platform, domain)
     scores = {
         "input_to_contract_improvement": min(
             0.96,
@@ -276,8 +257,8 @@ def _assumption_handling_score(text: str, missing_context_count: int) -> float:
     return round(max(0.62, base - min(0.16, missing_context_count * 0.04)), 2)
 
 
-def _platform_fit_score(text: str, platform: str) -> float:
-    target_terms = PLATFORM_TERMS.get(platform, PLATFORM_TERMS["generic"])
+def _platform_fit_score(text: str, platform: str, domain: str | None = None) -> float:
+    target_terms = platform_fit_terms(platform, domain)
     matched = sum(1 for term in target_terms if term in text)
     base = 0.62 + (matched * 0.07)
     if f"target platform: {platform}" in text:
@@ -287,9 +268,9 @@ def _platform_fit_score(text: str, platform: str) -> float:
     return round(min(0.96, base), 2)
 
 
-def _platform_fit_breakdown(text: str) -> dict[str, float]:
+def _platform_fit_breakdown(text: str, domain: str | None = None) -> dict[str, float]:
     return {
-        platform: _platform_fit_score(text, platform)
+        platform: _platform_fit_score(text, platform, domain)
         for platform in (
             "codex",
             "gemini",
@@ -340,7 +321,8 @@ def _score_metadata_for_prompt(
     recommendation_notes: list[str],
 ) -> dict[str, Any]:
     text = prompt.prompt_text.lower()
-    platform_breakdown = _platform_fit_breakdown(text)
+    domain = str(classification.get("domain") or classification.get("primary_domain") or "")
+    platform_breakdown = _platform_fit_breakdown(text, domain)
     target_platform = settings.target_platform
     assumption_notes = [
         str(item.get("assumption"))
@@ -358,8 +340,9 @@ def _score_metadata_for_prompt(
             platform_label=platform_label,
             target_platform=target_platform,
             assumption_count=len(assumption_notes),
+            domain=domain,
         ),
-        "why_this_variant": _why_this_variant(prompt, settings, assumption_notes),
+        "why_this_variant": _why_this_variant(prompt, settings, assumption_notes, domain),
         "assumption_notes": assumption_notes,
         "modification_audit_trail": _modification_audit_trail(
             problem=problem,
@@ -377,7 +360,7 @@ def _score_metadata_for_prompt(
             assumption_sources=assumption_sources,
             recommendation_notes=recommendation_notes,
         ),
-        "recommended_actions": _recommended_actions(prompt, settings, assumption_notes),
+        "recommended_actions": _recommended_actions(prompt, settings, assumption_notes, domain=domain),
         "scorer_metadata": scorer_metadata,
     }
 
@@ -386,11 +369,9 @@ def _why_this_variant(
     prompt: PromptVariant,
     settings: PromptSettings,
     assumption_notes: list[str],
+    domain: str | None = None,
 ) -> str:
-    platform_reason = PLATFORM_BEHAVIOR_SUMMARIES.get(
-        settings.target_platform,
-        PLATFORM_BEHAVIOR_SUMMARIES["generic"],
-    )
+    platform_reason = platform_behavior_summary(settings.target_platform, domain)
     assumption_text = (
         f" It carries {len(assumption_notes)} explicit assumptions instead of hiding missing context."
         if assumption_notes
@@ -407,11 +388,9 @@ def _recommendation_summary(
     platform_label: str,
     target_platform: str,
     assumption_count: int,
+    domain: str | None = None,
 ) -> str:
-    behavior = PLATFORM_BEHAVIOR_SUMMARIES.get(
-        target_platform,
-        PLATFORM_BEHAVIOR_SUMMARIES["generic"],
-    )
+    behavior = platform_behavior_summary(target_platform, domain)
     owner = f"{display_name}'s " if display_name else ""
     assumption_note = (
         f" with {assumption_count} visible assumptions"
@@ -447,10 +426,7 @@ def _modification_audit_trail(
         {
             "id": "platform_fit",
             "label": "Shaped for platform fit",
-            "reason": (
-                f"The prompt was optimized for {_platform_label(settings.target_platform)}: "
-                f"{PLATFORM_BEHAVIOR_SUMMARIES.get(settings.target_platform, PLATFORM_BEHAVIOR_SUMMARIES['generic'])}."
-            ),
+            "reason": _platform_fit_reason(settings, classification),
             "source": "platform_settings",
         },
     ]
@@ -488,6 +464,24 @@ def _modification_audit_trail(
             }
         )
     return audit
+
+
+def _platform_fit_reason(settings: PromptSettings, classification: dict[str, Any]) -> str:
+    domain = str(classification.get("domain") or classification.get("primary_domain") or "")
+    behavior = platform_behavior_summary(settings.target_platform, domain)
+    if (
+        settings.target_platform in {"codex", "cursor"}
+        and not uses_code_platform_scaffolding(settings.target_platform, domain)
+    ):
+        return (
+            f"The prompt keeps {_platform_label(settings.target_platform)}-friendly structure "
+            f"for {_labelize(domain or 'general problem solving')} without adding software-task scaffolding: "
+            f"{behavior}."
+        )
+    return (
+        f"The prompt was optimized for {_platform_label(settings.target_platform)}: "
+        f"{behavior}."
+    )
 
 
 def _rules_matched(
@@ -569,9 +563,9 @@ def _optimization_paths(
         {
             "id": "platform_shaping",
             "label": f"{_platform_label(settings.target_platform)} shaping",
-            "detail": PLATFORM_BEHAVIOR_SUMMARIES.get(
+            "detail": platform_behavior_summary(
                 settings.target_platform,
-                PLATFORM_BEHAVIOR_SUMMARIES["generic"],
+                str(classification.get("domain") or classification.get("primary_domain") or ""),
             ),
         },
         {
@@ -611,6 +605,7 @@ def _recommended_actions(
     prompt: PromptVariant,
     settings: PromptSettings,
     assumption_notes: list[str],
+    domain: str | None = None,
 ) -> list[dict[str, Any]]:
     actions: list[dict[str, Any]] = []
     if assumption_notes:
@@ -640,7 +635,7 @@ def _recommended_actions(
                 "priority": "medium",
             }
         )
-    if settings.target_platform in {"codex", "cursor"}:
+    if uses_code_platform_scaffolding(settings.target_platform, domain):
         actions.append(
             {
                 "id": "add_verification_commands",

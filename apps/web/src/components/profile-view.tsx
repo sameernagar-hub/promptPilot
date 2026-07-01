@@ -236,7 +236,7 @@ export function ProfileView() {
 
   return (
     <AppShell
-      title="Prompting Profile"
+      title="Prompt Intelligence"
       status={status}
       icon={<Brain className="size-4" />}
       actions={
@@ -436,7 +436,7 @@ export function ProfileView() {
               className="inline-flex items-center gap-2 rounded-md text-[#1e4d45] hover:underline"
             >
               <UploadCloud className="size-4" />
-              Add chat imports
+              Add prompt imports
             </Link>
           </section>
         )}
